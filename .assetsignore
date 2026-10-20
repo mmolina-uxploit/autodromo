@@ -1,0 +1,16 @@
+.git
+.gitignore
+.assetsignore
+node_modules
+design
+respaldo
+tests
+tools
+docs
+package.json
+package-lock.json
+README.md
+LICENSE
+wrangler.jsonc
+dist/artifact.html
+dist/*.zip
