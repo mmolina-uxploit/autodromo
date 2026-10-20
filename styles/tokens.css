@@ -55,3 +55,19 @@
   --dialog-width: 32rem;
   --dialog-width-wide: 46rem;
 }
+
+/*
+ * La escala está pensada para monitor. En un teléfono deja títulos y fichas desproporcionados,
+ * así que baja un escalón entero: la jerarquía entre pasos se mantiene, cambia la densidad.
+ */
+@media (max-width: 480px), (max-height: 480px) {
+  :root {
+    --step--1: 0.875rem;
+    --step-0: 1rem;
+    --step-1: 1.1875rem;
+    --step-2: 1.5rem;
+    --step-3: 2rem;
+    --step-4: 2.75rem;
+    --step-5: 3.5rem;
+  }
+}

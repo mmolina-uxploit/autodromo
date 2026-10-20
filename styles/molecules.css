@@ -72,6 +72,8 @@
   border-radius: var(--radius-s);
   background: linear-gradient(var(--color-cream), var(--color-lavender));
 }
+/* Cuando la franja se achata, el auto se achica dentro en lugar de recortarse. */
+.o-car-select .m-option-card__media .a-picture { width: 100%; height: 100%; object-fit: contain; }
 .m-option-card__body { display: grid; gap: var(--space-1); align-content: start; }
 .m-option-card__title { font-size: var(--step-2); font-weight: 700; line-height: 1.05; }
 .m-option-card__description { color: var(--on-surface-muted); font-size: var(--step--1); max-width: 40ch; }
@@ -92,6 +94,32 @@
 .m-option-card:has(.m-option-card__input:focus-visible) { box-shadow: var(--shadow-ink), var(--focus-ring); }
 @media (min-width: 640px) {
   .m-option-card { grid-template-columns: 44% 1fr; align-items: center; }
+}
+/*
+ * Dos columnas en el panel ancho (ver organisms.css, mismo corte de 60rem): ahí cada tarjeta mide
+ * la mitad, así que vuelve a apilarse y la foto pasa a una franja baja. Si cambia uno de los dos
+ * cortes hay que cambiar el otro.
+ */
+@media (min-width: 60rem) {
+  .o-select .m-option-card { grid-template-columns: 1fr; }
+  .o-car-select .m-option-card__media { aspect-ratio: 16 / 6; }
+}
+/*
+ * Teléfono (angosto, o bajo si está apaisado): la tarjeta de auto ocupaba media pantalla y solo
+ * se veía una opción. Se le recorta la foto, se achican los medidores y la descripción queda solo
+ * para el lector de pantalla, que es lo que más alto ahorra sin sacar información del nombre ni
+ * de la ficha. El corte es el mismo del tablero, y deja afuera a un portátil de 720p.
+ */
+@media (max-width: 560px), (max-height: 560px) {
+  .o-car-select .m-option-card__media { aspect-ratio: 16 / 6; }
+  .o-select .m-option-card { gap: var(--space-2); padding: var(--space-2); }
+  .o-select .m-option-card__description {
+    position: absolute; width: 1px; height: 1px;
+    margin: -1px; padding: 0;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  .o-select .m-stat-meters { gap: 2px; margin-top: var(--space-1); }
+  .o-select .m-facts { gap: 2px; }
 }
 
 .m-step {

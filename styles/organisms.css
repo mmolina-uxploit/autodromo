@@ -68,7 +68,13 @@
 @media (pointer: coarse), (hover: none) {
   .o-hud__bottom { margin-bottom: calc(var(--pad-size-large) + var(--space-6) + 52px); }
 }
-@media (max-width: 560px) {
+/*
+ * Pantalla angosta o baja: el tablero se compacta. La condición de alto es la que salva el móvil
+ * apaisado, donde el tablero alto y los mandos táctiles se disputaban el mismo rincón y terminaban
+ * uno encima del otro: con 390 px de alto no entran el tablero de dos filas, los mandos y el
+ * reparto de arriba, así que el tablero pasa a una sola fila.
+ */
+@media (max-width: 560px), (max-height: 560px) {
   .o-hud__telemetry { display: none; }
   .o-hud__race { gap: var(--space-2); }
   /* En pantallas angostas el velocímetro va a la derecha, sobre los botones, sin tapar el auto. */
@@ -76,6 +82,15 @@
   .o-hud__dash { gap: 2px var(--space-3); padding: var(--space-1) var(--space-2); }
   .o-hud__speed .a-readout--xl { font-size: 2.25rem; }
   .o-hud__bar { width: 28vw; height: 8px; }
+}
+@media (max-height: 560px) {
+  /* Todo en una fila: velocímetro, marcha y las dos barras al lado, no apiladas. */
+  .o-hud__dash { grid-template-columns: repeat(4, auto); align-items: center; gap: var(--space-1) var(--space-3); }
+  .o-hud__speed { grid-row: auto; }
+  .o-hud__speed .a-readout--xl { font-size: 1.75rem; }
+  .o-hud__meter { grid-column: auto; }
+  .o-hud__bar { width: min(7rem, 14vw); height: 7px; }
+  .o-hud__race .a-readout--xl { font-size: 1.75rem; }
 }
 
 .o-touch {
@@ -89,20 +104,38 @@
 .o-touch--swapped .o-touch__right { justify-items: start; }
 @media (pointer: coarse), (hover: none) { .o-touch { display: flex; } }
 
+/*
+ * El panel nunca pasa del alto de la ventana. Lo que sobra lo scrollea el cuerpo, no el panel
+ * entero: así el pie con «Volver» y «Siguiente» queda siempre a la vista. Scrolleando el panel
+ * completo, en una lista larga como la de autos los botones se iban abajo de la pantalla.
+ */
 .o-dialog {
   width: min(32rem, calc(100vw - 1.5rem));
   max-height: calc(100vh - 1.5rem);
   max-height: calc(100dvh - 1.5rem);
-  overflow: auto;
+  overflow: hidden;
   padding: 0;
   border: var(--border); border-radius: var(--radius-l);
   background: var(--surface); color: var(--on-surface);
   box-shadow: 8px 8px 0 var(--color-ink);
 }
+/* Solo abierto: un `display` sin condición pisaría la regla del navegador que esconde los
+   diálogos cerrados, y quedarían todos apilados en pantalla. */
+.o-dialog[open] { display: grid; grid-template-rows: minmax(0, 1fr) auto; }
 .o-dialog::backdrop { background: color-mix(in srgb, var(--color-night) 45%, transparent); }
-.o-dialog__body { display: grid; gap: var(--space-5); padding: var(--space-6) var(--space-6) var(--space-3); }
-.o-dialog__title { font-size: clamp(2rem, 9vw, var(--step-4)); font-weight: 700; line-height: 0.95; letter-spacing: -0.01em; overflow-wrap: anywhere; }
-.o-dialog__footer { display: flex; flex-wrap: wrap; gap: var(--space-3); padding: var(--space-4) var(--space-6) var(--space-6); }
+.o-dialog__body {
+  display: grid; gap: var(--space-5); align-content: start;
+  padding: var(--space-6) var(--space-6) var(--space-3);
+  overflow: auto; overscroll-behavior: contain;
+}
+.o-dialog__title { font-size: clamp(1.75rem, 7vw, var(--step-4)); font-weight: 700; line-height: 0.95; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.o-dialog__footer {
+  display: flex; flex-wrap: wrap; gap: var(--space-3);
+  padding: var(--space-4) var(--space-6) var(--space-6);
+  /* Separa el pie fijo del contenido que ahora pasa por debajo. */
+  border-top: 2px solid color-mix(in srgb, var(--color-ink) 12%, transparent);
+  background: var(--surface);
+}
 
 .o-pause .a-button--primary,
 .o-results .a-button--primary { flex: 1 1 100%; }
@@ -115,21 +148,36 @@
 @media (max-width: 360px) {
   :root { --pad-size: 68px; --pad-size-large: 84px; }
 }
+/* Apaisado: los mandos ocupan alto, que es lo que falta. Más chicos siguen pasando el mínimo táctil. */
+@media (max-height: 480px) {
+  :root { --pad-size: 60px; --pad-size-large: 72px; }
+}
 @media (max-width: 420px) {
   .o-dialog__body { padding: var(--space-5) var(--space-5) var(--space-2); }
   .o-dialog__footer { padding: var(--space-3) var(--space-5) var(--space-5); }
+}
+/* En pantalla baja el panel aprovecha casi todo el alto: el cuerpo scrollea, el pie no. */
+@media (max-height: 560px) {
+  .o-dialog { max-height: calc(100dvh - 0.75rem); }
+  .o-dialog__body { gap: var(--space-3); padding: var(--space-4) var(--space-5) var(--space-2); }
+  .o-dialog__footer { padding: var(--space-3) var(--space-5) var(--space-4); }
 }
 
 .o-dialog.o-select { width: min(var(--dialog-width-wide), calc(100vw - 1.5rem)); }
 .o-car-select__cards,
 .o-track-select__cards { display: grid; gap: var(--space-3); margin: 0; padding: 0; border: 0; min-width: 0; }
+/* Con el panel ancho entran dos tarjetas por fila: cuatro autos ocupan dos filas en vez de cuatro. */
+@media (min-width: 60rem) {
+  .o-car-select__cards,
+  .o-track-select__cards { grid-template-columns: 1fr 1fr; }
+}
 .o-track-select__best { color: var(--on-surface-muted); font-size: var(--step--1); font-weight: 600; }
 .o-select .o-dialog__footer .a-button--primary,
 .o-setup .o-dialog__footer .a-button--primary { flex: 1 1 auto; }
 
 /* Pantalla de título arcade: el logo es lo único ruidoso; todo lo demás queda quieto. */
 .o-title[open] {
-  display: grid; place-items: center;
+  display: grid; grid-template-rows: none; place-items: center;
   width: 100vw; max-width: none; height: 100vh; height: 100dvh; max-height: none;
   margin: 0; padding: 0; border: 0;
   background: transparent; color: var(--color-warm-light);
