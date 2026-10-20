@@ -1,6 +1,6 @@
 import { findFrame, framePoints, steerFrameIndex } from './sprite-atlas.js';
 import { hashNoise } from '../../domain/math.js';
-import { paintGlow } from './glow.js';
+import { glowSprite, paintGlow } from './glow.js';
 
 /**
  * Dibuja un auto por capas: sombra en el piso, ruedas fijas, carrocería que sube, baja y rola
@@ -11,6 +11,10 @@ const HEAVE_GAIN = 2.4;
 const ROLL_GAIN = 1.8;
 const MAX_ROLL = 0.1;
 const SHADOW = 'rgba(42,45,85,';
+// Mancha suave para la sombra estirada: el borde se deshace en vez de cortar.
+const SHADOW_BLUR = Object.freeze([[0, 'rgba(42,45,85,1)'], [0.62, 'rgba(42,45,85,0.82)'], [1, 'rgba(42,45,85,0)']]);
+// El degradé cubre su óvalo a media densidad; esto compensa para igualar la mancha de contacto.
+const BLUR_GAIN = 2.3;
 
 function glow(ctx, x, y, r, inner, outer, alpha = 1) {
   ctx.globalAlpha = alpha;
@@ -26,15 +30,39 @@ function drawLayer(ctx, atlas, key, ox, oy, k) {
   return true;
 }
 
-export function paintShadow(ctx, x, groundY, ppm, spec, height) {
+/**
+ * Sombra en el piso. `light` da la dirección en pantalla hacia donde cae y cuánto se estira
+ * (en anchos de huella); sin dirección queda el óvalo de contacto. Al despegar se acorta,
+ * se achica y se aclara: la sombra vuelve bajo el auto a medida que sube.
+ */
+export function paintShadow(ctx, x, groundY, ppm, spec, height, light) {
   const lift = Math.max(0, height);
   const shrink = 1 / (1 + lift * 0.14);
   const rx = spec.width * 0.62 * ppm * shrink;
   if (rx < 1) return;
-  ctx.fillStyle = `${SHADOW}${(0.45 / (1 + lift * 0.45)).toFixed(3)})`;
-  ctx.beginPath();
-  ctx.ellipse(x, groundY, rx, rx * 0.2, 0, 0, Math.PI * 2);
-  ctx.fill();
+  const ry = rx * 0.2;
+  const alpha = 0.45 / (1 + lift * 0.45);
+  const reach = (light?.length ?? 0) * rx / (1 + lift * 0.5);
+  if (reach < ry) {
+    ctx.fillStyle = `${SHADOW}${alpha.toFixed(3)})`;
+    ctx.beginPath();
+    ctx.ellipse(x, groundY, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+  // La huella es un óvalo que la perspectiva achata: cuánto mide a lo largo del rayo y cuánto
+  // a lo ancho depende del ángulo. La sombra es esa huella corrida media longitud hacia cada lado.
+  const angle = Math.atan2(light.dy, light.dx);
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  const along = Math.hypot(rx * c, ry * s) + reach / 2;
+  const across = Math.hypot(rx * s, ry * c);
+  ctx.save();
+  ctx.translate(x + light.dx * reach / 2, groundY + light.dy * reach / 2);
+  ctx.rotate(angle);
+  ctx.globalAlpha *= Math.min(1, alpha * BLUR_GAIN);
+  ctx.drawImage(glowSprite(SHADOW_BLUR), -along, -across, along * 2, across * 2);
+  ctx.restore();
 }
 
 function liftJets(ctx, points, toScreen, groundY, ppm, clock, strength) {
@@ -84,12 +112,12 @@ function backfire(ctx, points, toScreen, ppm, clock, seed) {
 
 /**
  * `view`: { x, y (punto del piso bajo el auto, en el aire incluido), groundY, ppm (px/m),
- * yaw (grados aparentes), incline, spec, swatch, clock, alpha }
+ * yaw (grados aparentes), incline, spec, swatch, clock, alpha, light }
  */
 export function paintCar(ctx, atlas, car, view) {
   const { x, y, groundY, ppm, spec, clock } = view;
   ctx.globalAlpha = view.alpha ?? 1;
-  paintShadow(ctx, x, groundY, ppm, spec, (groundY - y) / ppm);
+  paintShadow(ctx, x, groundY, ppm, spec, (groundY - y) / ppm, view.light);
   ctx.globalAlpha = 1;
 
   const sheet = atlas?.sheets[car.model];
