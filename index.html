@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#05060f">
+  <meta name="description" content="Carreras pseudo-3D en el navegador: cuatro circuitos, autos con propulsores de aire, rivales y física real. Se juega con teclado, mando o pantalla táctil.">
+  <title>Autódromo</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M3 22 11 9h16l2 13z' fill='%23b6e03a' stroke='%231c1f3a' stroke-width='2.5' stroke-linejoin='round'/%3E%3Ccircle cx='10' cy='23' r='3.5' fill='%231c1f3a'/%3E%3Ccircle cx='24' cy='23' r='3.5' fill='%231c1f3a'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/atoms.css">
+  <link rel="stylesheet" href="styles/molecules.css">
+  <link rel="stylesheet" href="styles/organisms.css">
+  <link rel="stylesheet" href="styles/templates.css">
+  <script>
+    // Abierto con doble clic (file://) el navegador bloquea los módulos y la página queda en blanco:
+    // se pasa a la versión de un solo archivo, que funciona sin servidor.
+    if (location.protocol === 'file:') location.replace('dist/autodromo.html' + location.search + location.hash);
+  </script>
+  <script type="module" src="src/main.js"></script>
+</head>
+<body>
+  <noscript><p class="noscript">Autódromo necesita JavaScript activado para correr.</p></noscript>
+  <div id="app"></div>
+</body>
+</html>

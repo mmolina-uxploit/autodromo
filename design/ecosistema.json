@@ -1,0 +1,662 @@
+{
+  "proyecto": "Autódromo",
+  "version": "1.1-anime",
+  "tesis": "Ilustración automotriz 2D: pintura con reflejos de cielo, sombras azules y luces rojas.",
+  "fuente": "referencias-estilo.json",
+  "patrones": [],
+  "decisiones": [],
+  "paleta": {
+    "base_fria": [
+      {
+        "id": "hormigon",
+        "hex": "#7f93b0",
+        "uso": "estructuras, autos de tráfico"
+      },
+      {
+        "id": "hormigon_sombra",
+        "hex": "#4f5d7a",
+        "uso": "voladizos, bajos"
+      },
+      {
+        "id": "lavanda",
+        "hex": "#c7cbe0",
+        "uso": "hormigón de día"
+      },
+      {
+        "id": "grafito",
+        "hex": "#5f6b78",
+        "uso": "asfalto, carrocerías oscuras"
+      }
+    ],
+    "contraluz_calido": [
+      {
+        "id": "crema",
+        "hex": "#efebe4",
+        "uso": "cielo de día, papel"
+      },
+      {
+        "id": "durazno",
+        "hex": "#f3c4a6",
+        "uso": "disco solar, bruma de atardecer"
+      },
+      {
+        "id": "rosa_piso",
+        "hex": "#e6c0b9",
+        "uso": "piso nocturno"
+      },
+      {
+        "id": "salmon",
+        "hex": "#e8875c",
+        "uso": "horizonte de atardecer"
+      }
+    ],
+    "acentos": [
+      {
+        "id": "lima",
+        "hex": "#b6e03a",
+        "uso": "auto del jugador, vegetación"
+      },
+      {
+        "id": "magenta",
+        "hex": "#e8459a",
+        "uso": "señalética, rebote de sombra"
+      },
+      {
+        "id": "rosa_neon",
+        "hex": "#ee9fde",
+        "uso": "bandas de horizonte, palmeras"
+      },
+      {
+        "id": "cian",
+        "hex": "#5fe3f0",
+        "uso": "LED delanteros, guías de pista"
+      },
+      {
+        "id": "ambar",
+        "hex": "#ff7a24",
+        "uso": "luces traseras"
+      },
+      {
+        "id": "oro",
+        "hex": "#c99a3a",
+        "uso": "llantas, aletas"
+      },
+      {
+        "id": "mostaza",
+        "hex": "#e0b54a",
+        "uso": "torres, tráfico"
+      },
+      {
+        "id": "turquesa",
+        "hex": "#3fb3b0",
+        "uso": "torres, tráfico"
+      }
+    ],
+    "estructura": [
+      {
+        "id": "tinta",
+        "hex": "#1c1f3a",
+        "uso": "toda línea"
+      },
+      {
+        "id": "indigo_sombra",
+        "hex": "#353a6e",
+        "uso": "mezcla de sombra"
+      },
+      {
+        "id": "luz_calida",
+        "hex": "#fff4dc",
+        "uso": "mezcla de luz"
+      },
+      {
+        "id": "noche",
+        "hex": "#05060f",
+        "uso": "cielo nocturno"
+      }
+    ]
+  },
+  "proporcion_color": {
+    "base_fria": 0.65,
+    "contraluz_calido": 0.25,
+    "acentos": 0.1
+  },
+  "reglas": {
+    "luz": "Tres valores de luz y reflejos definidos por superficie. Rebote azul tenue.",
+    "linea": "Tinta azul oscura; contorno estable y detalles de superficie.",
+    "forma": "Se conservan las geometrías del juego para mantener siluetas y anclajes.",
+    "detalle": "Concentrado abajo y atrás: bajos, escapes, difusores, zócalos.",
+    "emisivos": "Traseras rojas; luces delanteras blanco frío.",
+    "texto": "Katakana, números grandes y chevrones como señalética; nunca marcas reales.",
+    "escenario": "Animé realista: cenit profundo, resplandor en el horizonte, nubes con volumen iluminadas por el sol o la ciudad, bruma de distancia, ventanas encendidas de noche, asfalto que refleja el cielo y, mojado, las luces."
+  },
+  "zonas": [
+    {
+      "id": "bajo-autopista",
+      "nombre": "Bajo Autopista",
+      "hora": "noche",
+      "referencias": [
+        "R1",
+        "R6"
+      ],
+      "cielo": [
+        "#05060f",
+        "#10142e",
+        "#2a2f5c"
+      ],
+      "niebla": "#2a2f5c",
+      "pista": {
+        "asfalto": [
+          "#d8b2ab",
+          "#cfa8a1"
+        ],
+        "cordon": [
+          "#7f93b0",
+          "#efe8dc"
+        ],
+        "carril": "#f6eee6",
+        "suelo": [
+          "#55627f",
+          "#4f5d7a"
+        ]
+      },
+      "siluetas": [
+        "arcos de viaducto",
+        "columnas",
+        "faroles cálidos"
+      ],
+      "emisivos": [
+        "#ff7a24",
+        "#ffd36a"
+      ],
+      "atmosfera": {
+        "cenit": "#020309",
+        "resplandor": [
+          "#ff7a24",
+          0.2
+        ],
+        "bruma": [
+          "#2a2f5c",
+          0.55
+        ],
+        "nubes": {
+          "luz": "#4a3f66",
+          "sombra": "#151a35",
+          "borde": "#ff9a4a",
+          "iluminadas": "desde abajo",
+          "cantidad": 4
+        },
+        "luna": "#fff4dc",
+        "ventanas": [
+          "#ffd36a",
+          "#fff4dc",
+          "#ff7a24",
+          "#9fd8ff"
+        ],
+        "brillo_asfalto": 0.18,
+        "piso_mojado": 0.55
+      }
+    },
+    {
+      "id": "costa-rosa",
+      "nombre": "Costa Rosa",
+      "hora": "día",
+      "referencias": [
+        "R2",
+        "R3"
+      ],
+      "cielo": [
+        "#efebe4",
+        "#f4dccf",
+        "#efa1e2"
+      ],
+      "niebla": "#f2c9dc",
+      "sol": "#f3c4a6",
+      "pista": {
+        "asfalto": [
+          "#5f6b78",
+          "#5a6572"
+        ],
+        "cordon": [
+          "#ee9fde",
+          "#f4efe6"
+        ],
+        "carril": "#f4efe6",
+        "suelo": [
+          "#e9d9c8",
+          "#e2d0bd"
+        ]
+      },
+      "siluetas": [
+        "palmeras rosa neón",
+        "disco solar"
+      ],
+      "emisivos": [
+        "#5fe3f0"
+      ],
+      "atmosfera": {
+        "cenit": "#b3b2e2",
+        "resplandor": [
+          "#f3c4a6",
+          0.55
+        ],
+        "bruma": [
+          "#f2c9dc",
+          0.6
+        ],
+        "nubes": {
+          "luz": "#fff1de",
+          "sombra": "#c99cc6",
+          "borde": "#fff4dc",
+          "iluminadas": "desde abajo",
+          "cantidad": 7
+        },
+        "sol": {
+          "nucleo": "#fff8e6",
+          "halo": "#ffcf9e"
+        },
+        "mar": {
+          "lejos": "#f4bfe0",
+          "cerca": "#c77fb8",
+          "destello": "#fff4dc"
+        },
+        "brillo_asfalto": 0.22,
+        "piso_mojado": 0
+      }
+    },
+    {
+      "id": "distrito-torre",
+      "nombre": "Distrito Torre",
+      "hora": "día",
+      "referencias": [
+        "R5",
+        "R8"
+      ],
+      "cielo": [
+        "#4f9ee8",
+        "#8fcdef",
+        "#d6ecf8"
+      ],
+      "niebla": "#d6ecf8",
+      "pista": {
+        "asfalto": [
+          "#b9bccb",
+          "#b2b5c5"
+        ],
+        "cordon": [
+          "#ee6f93",
+          "#f4f6fa"
+        ],
+        "carril": "#61d3f2",
+        "suelo": [
+          "#c7cbe0",
+          "#bfc3da"
+        ]
+      },
+      "siluetas": [
+        "torres cilíndricas turquesa, rosa y mostaza",
+        "losas lavanda",
+        "árboles lima"
+      ],
+      "emisivos": [
+        "#5fe3f0",
+        "#ff4fd0"
+      ],
+      "atmosfera": {
+        "cenit": "#2a6cc9",
+        "resplandor": [
+          "#fff4dc",
+          0.35
+        ],
+        "bruma": [
+          "#e6f2fa",
+          0.55
+        ],
+        "nubes": {
+          "luz": "#ffffff",
+          "sombra": "#b5c9e2",
+          "borde": "#ffffff",
+          "iluminadas": "desde arriba",
+          "cantidad": 7
+        },
+        "vidrio": "#d6ecf8",
+        "brillo_asfalto": 0.2,
+        "piso_mojado": 0
+      }
+    },
+    {
+      "id": "anillo-neon",
+      "nombre": "Anillo Neón",
+      "hora": "noche",
+      "referencias": [
+        "R4",
+        "R7"
+      ],
+      "cielo": [
+        "#141a3a",
+        "#3a2f7a",
+        "#8a6fe0"
+      ],
+      "niebla": "#3a2f7a",
+      "pista": {
+        "asfalto": [
+          "#2b3160",
+          "#283058"
+        ],
+        "cordon": [
+          "#5fe8f0",
+          "#ff4fa8"
+        ],
+        "carril": "#c8f05a",
+        "suelo": [
+          "#1a1840",
+          "#1f1d4a"
+        ]
+      },
+      "siluetas": [
+        "pantallas con degradado cian→magenta",
+        "torres con remate esférico"
+      ],
+      "emisivos": [
+        "#5fe8f0",
+        "#ff4fa8",
+        "#ff8a1f"
+      ],
+      "atmosfera": {
+        "cenit": "#07081c",
+        "resplandor": [
+          "#ff4fa8",
+          0.24
+        ],
+        "bruma": [
+          "#3a2f7a",
+          0.5
+        ],
+        "nubes": {
+          "luz": "#5a4699",
+          "sombra": "#1a1640",
+          "borde": "#ff4fa8",
+          "iluminadas": "desde abajo",
+          "cantidad": 4
+        },
+        "ventanas": [
+          "#5fe8f0",
+          "#ff4fa8",
+          "#c8f05a",
+          "#fff4dc"
+        ],
+        "haces": [
+          "#5fe8f0",
+          "#ff4fa8"
+        ],
+        "brillo_asfalto": 0.16,
+        "piso_mojado": 0.7
+      }
+    }
+  ],
+  "vehiculos": {
+    "cuna": {
+      "nombre": "Cuña",
+      "rol": "jugador",
+      "silueta": "Cuña baja de motor central: cubierta trasera plana, alerón con placas, guardabarros atornillados.",
+      "dimensiones_m": {
+        "largo": 4.3,
+        "ancho": 2.2,
+        "alto": 1.15
+      },
+      "firma": [
+        "cuatro luces traseras redondas rojas",
+        "mecánica expuesta entre luces",
+        "cuatro escapes",
+        "barra LED blanco frío delantera"
+      ],
+      "libreas": [
+        {
+          "id": "lima",
+          "carroceria": "#a1ba4b",
+          "acento": "#25384c",
+          "vidrio": "#28475f",
+          "llanta": "#aebfca"
+        },
+        {
+          "id": "coral",
+          "carroceria": "#da604d",
+          "acento": "#25384c",
+          "vidrio": "#28475f",
+          "llanta": "#aebfca"
+        }
+      ]
+    },
+    "saeta": {
+      "nombre": "Saeta",
+      "rol": "jugador y tráfico",
+      "silueta": "Coupé fastback: techo que cae en una sola pendiente hasta una cola corta con labio.",
+      "dimensiones_m": {
+        "largo": 4.45,
+        "ancho": 2.05,
+        "alto": 1.08
+      },
+      "firma": [
+        "barra trasera rojas continua",
+        "persianas sobre la luneta",
+        "vidrio de color"
+      ],
+      "libreas": [
+        {
+          "id": "hormigon",
+          "carroceria": "#91a9bd",
+          "acento": "#25384c",
+          "vidrio": "#28475f",
+          "llanta": "#aebfca"
+        },
+        {
+          "id": "grafito",
+          "carroceria": "#344b61",
+          "acento": "#25384c",
+          "vidrio": "#28475f",
+          "llanta": "#aebfca"
+        },
+        {
+          "id": "magenta",
+          "carroceria": "#a34a76",
+          "acento": "#25384c",
+          "vidrio": "#28475f",
+          "llanta": "#aebfca"
+        }
+      ]
+    },
+    "bloque": {
+      "nombre": "Bloque",
+      "rol": "jugador y tráfico",
+      "silueta": "Furgón brutalista de cabina adelantada: caja con laterales inclinados y parabrisas a 45 grados.",
+      "dimensiones_m": {
+        "largo": 4.35,
+        "ancho": 1.95,
+        "alto": 1.72
+      },
+      "firma": [
+        "luces traseras verticales",
+        "puerta trasera partida",
+        "banda inferior bicolor"
+      ],
+      "libreas": [
+        {
+          "id": "crema",
+          "carroceria": "#e5e7dd",
+          "acento": "#25384c",
+          "vidrio": "#28475f",
+          "llanta": "#aebfca"
+        },
+        {
+          "id": "turquesa",
+          "carroceria": "#438c92",
+          "acento": "#25384c",
+          "vidrio": "#28475f",
+          "llanta": "#aebfca"
+        },
+        {
+          "id": "mostaza",
+          "carroceria": "#c5a34e",
+          "acento": "#25384c",
+          "vidrio": "#28475f",
+          "llanta": "#aebfca"
+        }
+      ]
+    },
+    "volta": {
+      "nombre": "Volta",
+      "rol": "jugador y rival",
+      "silueta": "Roadster eléctrico bajo de techo targa: trompa larga en cuña, ancas anchas y cola corta con barra de luz continua.",
+      "dimensiones_m": {
+        "largo": 4.2,
+        "ancho": 2.0,
+        "alto": 1.12
+      },
+      "firma": [
+        "barra trasera rojas continua",
+        "patente que esconde la tobera central de aire frío",
+        "dos toberas bajo el paragolpes",
+        "techo targa negro"
+      ],
+      "libreas": [
+        {
+          "id": "rubi",
+          "carroceria": "#b93843",
+          "acento": "#25384c",
+          "vidrio": "#28475f",
+          "llanta": "#aebfca"
+        },
+        {
+          "id": "perla",
+          "carroceria": "#e9f0ed",
+          "acento": "#25384c",
+          "vidrio": "#28475f",
+          "llanta": "#aebfca"
+        },
+        {
+          "id": "noche",
+          "carroceria": "#172e48",
+          "acento": "#25384c",
+          "vidrio": "#28475f",
+          "llanta": "#aebfca"
+        }
+      ]
+    }
+  },
+  "render": {
+    "luz_clave": [
+      -0.45,
+      0.8,
+      -0.42
+    ],
+    "luz_rebote": [
+      0.75,
+      0.25,
+      0.6
+    ],
+    "umbral_luz": 0.55,
+    "umbral_medio": 0.25,
+    "mezcla_luz": 0.24,
+    "multiplicador_sombra": "#546b8b",
+    "mezcla_sombra": 0.2,
+    "reflejo_vidrio": "#a9cfe0",
+    "color_rebote": "#94bddb",
+    "umbral_rebote": 0.35,
+    "ancho_rebote_px_supermuestreo": 3,
+    "mezcla_rebote": 0.3,
+    "tinta": "#142333",
+    "indigo_sombra": "#203f60",
+    "luz_calida": "#f7f6e9",
+    "materiales_fijos": {
+      "trim": "#182a3a",
+      "neumatico": "#101a25",
+      "cromo": "#b8c9d7",
+      "motor": "#344553",
+      "patente": "#ebe5d8"
+    },
+    "emisivos": {
+      "trasera": {
+        "apagada": "#881a35",
+        "freno": "#ff2949"
+      },
+      "trasera_nucleo": {
+        "apagada": "#d83c51",
+        "freno": "#ffd4b8"
+      },
+      "led": "#deeff7",
+      "halo_trasera": "#f43250",
+      "halo_led": "#aacbdf"
+    }
+  },
+  "contrato_sprites": {
+    "principio": "Una geometría por modelo. Materiales y reflejos coherentes entre vistas. Atlas original fijado para sustitución compatible.",
+    "proyeccion": "perspectiva, cámara detrás del auto mirando hacia adelante",
+    "distancia_camara_m": 14.0,
+    "altura_objetivo_m": 0.55,
+    "px_por_metro": 100,
+    "supermuestreo": 3,
+    "giros_grados": [
+      -21,
+      -14,
+      -7,
+      0,
+      7,
+      14,
+      21
+    ],
+    "convencion_giro": "positivo = la trompa gira a la derecha; se ve el lateral derecho",
+    "inclinaciones_grados": {
+      "plano": 14,
+      "subida": 5
+    },
+    "estados_luz": {
+      "cuna": [
+        "luz",
+        "freno"
+      ],
+      "saeta": [
+        "luz",
+        "freno"
+      ],
+      "bloque": [
+        "luz",
+        "freno"
+      ],
+      "volta": [
+        "luz",
+        "freno"
+      ]
+    },
+    "trazo_px_supermuestreo": {
+      "silueta": 2,
+      "contorno": 1,
+      "pliegue": 0
+    },
+    "umbral_pliegue_grados": 22,
+    "umbral_profundidad_m": 0.12,
+    "sombra_contacto": {
+      "color": "#1c344c",
+      "opacidad": 0.45,
+      "desenfoque_px": 5
+    },
+    "ancla": "punto del piso bajo el centro del auto, en (ancho/2, alto - margen_inferior) de cada cuadro",
+    "nomenclatura": "{modelo}_{librea}_{inclinacion}_{capa}_g{indice_giro}",
+    "retratos": {
+      "uso": "tarjetas de selección de auto",
+      "giro_grados": 140,
+      "inclinacion_grados": 16,
+      "px_por_metro": 105,
+      "ancho": 560,
+      "alto": 300,
+      "archivo": "assets/garage/{modelo}-{librea}.png"
+    },
+    "capas": {
+      "carroceria": "auto sin ruedas, con luces traseras apagadas",
+      "freno": "solo los píxeles que cambian al frenar; se dibuja sobre la carrocería",
+      "ruedas": "las cuatro ruedas solas; se dibujan primero y no se mueven con la suspensión",
+      "frente": "la parte de las ruedas que tapa a la carrocería; se dibuja al final"
+    },
+    "puntos": "por modelo, inclinación y giro: contacto de cada rueda, pivote de la carrocería, toberas traseras y bajas, escapes; en píxeles del cuadro lógico",
+    "recorte": "cada capa se recorta a su contenido; ox/oy ubican el recorte dentro del cuadro lógico",
+    "ancho_hoja_max": 4096
+  }
+}

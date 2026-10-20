@@ -1,0 +1,93 @@
+Dibujos de Autódromo (todo lo que no es sprite)
+===============================================
+
+Lo que hay acá se dibuja con código en cada cuadro, sobre un canvas 2D. Las imágenes salieron
+del mismo código que usa el juego (tools/catalogo), así que son exactamente lo que se ve en carrera.
+
+1-utileria/     Cada objeto del costado de la pista, suelto, en PNG con fondo transparente,
+                a 40 px por metro. Una carpeta por zona, porque los colores y los halos cambian
+                (de noche hay halos). lamina-<zona>.png los muestra todos juntos.
+                anclas.json dice, para cada PNG, el punto de apoyo en el piso (apoyoX, apoyoY):
+                el juego planta el objeto ahí y lo escala según la distancia.
+
+2-fondos/       El fondo de cada zona a 1920 x 1080, completo y por capas: cielo, estrellas o
+                nubes, horizonte (viaducto, costa, torres o pantallas) y sol. Las capas sueltas
+                tienen fondo transparente. El horizonte queda en el 42 % de la altura.
+
+3-calzada-y-estructuras/
+                Vistas reales de cada pista, sin autos salvo la grilla de largada: largada con
+                el pórtico y el semáforo (en Bajo Autopista, sus 7 estados), recta, antes y
+                dentro de una curva, franja de empuje y cada salto a 50 m, en el labio y sobre
+                el foso. Muestran ruta, cordones, línea de largada, rampas, fosos, cara de
+                aterrizaje, defensas, pórticos, viaductos, arcos de neón y carteles.
+                Son cuadros del juego a 1280 x 720 en JPEG de alta calidad.
+
+4-efectos/      Humo y marcas de frenada, polvo, chispas (defensa y choque), propulsor de
+                empuje, planeo, impulso de salto, polvo de aterrizaje, petardeo del escape,
+                salpicadura al caer al agua, luces traseras y faros de noche, líneas de
+                velocidad, defensas de neón (JPEG, 1280 x 720) y el minimapa de cada
+                pista (PNG transparente). En cada efecto la cámara sigue al auto como en
+                carrera; humo y chispas se ven en un rival adelante, porque quedan atrás
+                del auto que los genera.
+
+5-codigo/       Los archivos que dibujan todo esto, con las mismas rutas que en el juego,
+                más la paleta (design/ecosistema.json) y la herramienta que generó este
+                paquete (tools/catalogo).
+
+INTEGRACION.md  Qué se puede cambiar y cómo devolverlo para que el juego lo tome sin romperse.
+
+
+Índice: qué es cada cosa y dónde se dibuja
+------------------------------------------
+(todas las rutas de código son relativas a 5-codigo/)
+
+La ruta                 src/infrastructure/rendering/canvas-renderer.js · paintRoadBand
+                        Asfalto en dos tonos que alternan cada 6 m, huellas de goma donde pisan
+                        las ruedas y dos líneas de carril. Ancho de 12 a 14 m según la pista.
+Los cordones            mismo archivo · paintRoadBand (strip)
+                        Franja de 1,2 m a cada lado, en dos colores alternados. Entre el cordón
+                        y la defensa hay una banda sombreada (la zona de escape).
+Línea de largada        mismo archivo · paintRoadBand: damero de tinta de 8 columnas.
+Las rampas              mismo archivo · paintRoadBand: asfalto aclarado, flechas mostaza y una
+                        franja magenta en el labio.
+Los fosos               mismo archivo · paintGap: degradé de la zona y un brillo que ondula.
+                        Tienen 14 m de profundidad.
+Cara de aterrizaje      mismo archivo · paintLandingFace: la pared del otro lado del foso, con
+                        franjas de tinta y mostaza arriba.
+Franja de empuje        mismo archivo · paintRoadBand: dos flechas cian que suman luz.
+Las defensas            mismo archivo · paintWalls: cara en dos tonos, borde superior y ojos de
+                        gato cada 12 m (con halo de noche). En Anillo Neón, una línea de neón
+                        que late. Altura de 0,9 a 1,2 m según la zona.
+Los pórticos            mismo archivo · paintOverhead: el de largada (damero y semáforo de 5
+                        luces que se encienden magenta y pasan a verde lima), los viaductos de
+                        Bajo Autopista cada 78 m, los arcos de neón de Anillo Neón cada 102 m y
+                        el cartel «サーキット ▶ 04» de Distrito Torre cada 180 m.
+El viaducto del fondo   src/infrastructure/rendering/backdrop.js · PAINTERS.viaduct
+Palmeras, árboles,      src/infrastructure/rendering/props.js · PROPS (columna, farola,
+balizas, carteles,      palmera, árbol, baliza, pantalla, cartel, flecha de curva, cartel de
+tribunas, distancia     distancia, tribuna). Dónde aparece cada uno: propsAt y distanceBoards.
+                        Los carteles con katakana dicen ジェット, ターボ, ネオン, スピード,
+                        ロケット y サーキット.
+                        Detalle real: las palabras largas (サーキット, ロケット) son más anchas que
+                        algunos carteles y pantallas y se salen por el costado.
+El cielo, las nubes,    src/infrastructure/rendering/backdrop.js · paintSky, paintClouds,
+las estrellas, el sol   paintStars, paintSunGlare, paintSkyline. Se desplazan con paralaje
+                        cuando la pista dobla; las nubes además derivan solas.
+El humo, el polvo,      canvas-renderer.js · spawnContinuous y applyEvents (cuándo y cómo
+las chispas, el vapor,  nacen), paintParticle (cómo se dibujan) y particles.js (cómo se mueven).
+el agua                 Humo y polvo son discos suaves; las chispas, trazos que suman luz.
+Marcas de frenada       canvas-renderer.js · trailMarks y paintMark; skid-marks.js. Duran 18 s.
+Llamas y chorros de     src/infrastructure/rendering/car-painter.js · boostFlames (empuje),
+los propulsores         liftJets (salto y planeo) y backfire (petardeo), más las partículas de
+                        llama y vapor del renderer. Salen de los puntos de anclaje del atlas.
+Sombra de los autos     car-painter.js · paintShadow.
+Luces de noche          canvas-renderer.js · tailGlow (halo rojo de las traseras, más fuerte al
+                        frenar) y headlights (mancha de faros del jugador).
+Líneas de velocidad,    canvas-renderer.js · paintSpeedLines (desde 180 km/h o con empuje),
+viñeta y niebla         paintVignette y la niebla por banda en paintRoad.
+El minimapa             src/infrastructure/rendering/minimap.js
+Colores por zona        src/config/zones.js (cielo, niebla, asfalto, cordones, piso, defensas,
+                        fosos, utilería, acento, humo y polvo).
+
+El tablero (velocidad, vueltas, puesto, barra de propulsores) y los menús no están acá:
+son HTML y CSS, no canvas.

@@ -1,0 +1,35 @@
+{
+  "version": "anime-v1",
+  "referencias_usuario": [
+    {
+      "archivo": "_ (6).jpeg",
+      "observacion": "Automóvil blanco, contornos finos, sombra azul y reflejos de cielo sobre pintura y cristales."
+    },
+    {
+      "archivo": "skyline r34.jpeg",
+      "observacion": "Carrocería oscura, reflejos recortados y luces traseras rojas; contraste de luz cálida y sombra fría."
+    },
+    {
+      "archivo": "Wallpaper.jpeg",
+      "observacion": "Deportivo oscuro de silueta baja, sombras nítidas y vidrio azul."
+    }
+  ],
+  "aplicado": [
+    "Sombras frías más profundas",
+    "Reflejos geométricos de cielo en pintura y vidrio",
+    "Llantas metálicas frías",
+    "Tinta más fina",
+    "Traseras rojas con estado de frenado"
+  ],
+  "conservado": [
+    "Geometría de los cuatro modelos",
+    "Cámara y escala",
+    "Atlas y puntos de anclaje",
+    "Nombres de libreas"
+  ],
+  "pendiente_para_mayor_fidelidad": [
+    "Carrocerías de geometría más detallada",
+    "Fondos pintados",
+    "Validación visual dentro del juego"
+  ]
+}

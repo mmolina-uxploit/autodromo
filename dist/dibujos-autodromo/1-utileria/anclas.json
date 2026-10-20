@@ -1,0 +1,590 @@
+{
+  "pixelesPorMetro": 40,
+  "utileria": [
+    {
+      "archivo": "1-utileria/bajo-autopista/columna.png",
+      "codigo": "pillar",
+      "zona": "bajo-autopista",
+      "ancho": 220,
+      "alto": 412,
+      "apoyoX": 110,
+      "apoyoY": 402
+    },
+    {
+      "archivo": "1-utileria/bajo-autopista/cartel-1.png",
+      "codigo": "billboard",
+      "zona": "bajo-autopista",
+      "ancho": 348,
+      "alto": 351,
+      "apoyoX": 174,
+      "apoyoY": 342
+    },
+    {
+      "archivo": "1-utileria/bajo-autopista/cartel-2.png",
+      "codigo": "billboard",
+      "zona": "bajo-autopista",
+      "ancho": 348,
+      "alto": 351,
+      "apoyoX": 174,
+      "apoyoY": 342
+    },
+    {
+      "archivo": "1-utileria/bajo-autopista/cartel-3.png",
+      "codigo": "billboard",
+      "zona": "bajo-autopista",
+      "ancho": 348,
+      "alto": 351,
+      "apoyoX": 174,
+      "apoyoY": 342
+    },
+    {
+      "archivo": "1-utileria/bajo-autopista/cartel-4.png",
+      "codigo": "billboard",
+      "zona": "bajo-autopista",
+      "ancho": 348,
+      "alto": 351,
+      "apoyoX": 174,
+      "apoyoY": 342
+    },
+    {
+      "archivo": "1-utileria/bajo-autopista/cartel-5.png",
+      "codigo": "billboard",
+      "zona": "bajo-autopista",
+      "ancho": 348,
+      "alto": 351,
+      "apoyoX": 174,
+      "apoyoY": 342
+    },
+    {
+      "archivo": "1-utileria/bajo-autopista/cartel-6.png",
+      "codigo": "billboard",
+      "zona": "bajo-autopista",
+      "ancho": 369,
+      "alto": 351,
+      "apoyoX": 174,
+      "apoyoY": 342
+    },
+    {
+      "archivo": "1-utileria/bajo-autopista/farola-lado-izquierdo.png",
+      "codigo": "lamp",
+      "zona": "bajo-autopista",
+      "ancho": 384,
+      "alto": 513,
+      "apoyoX": 96,
+      "apoyoY": 465
+    },
+    {
+      "archivo": "1-utileria/bajo-autopista/farola-lado-derecho.png",
+      "codigo": "lamp",
+      "zona": "bajo-autopista",
+      "ancho": 384,
+      "alto": 513,
+      "apoyoX": 288,
+      "apoyoY": 465
+    },
+    {
+      "archivo": "1-utileria/bajo-autopista/flecha-curva-derecha.png",
+      "codigo": "chevron",
+      "zona": "bajo-autopista",
+      "ancho": 156,
+      "alto": 156,
+      "apoyoX": 78,
+      "apoyoY": 142
+    },
+    {
+      "archivo": "1-utileria/bajo-autopista/flecha-curva-izquierda.png",
+      "codigo": "chevron",
+      "zona": "bajo-autopista",
+      "ancho": 156,
+      "alto": 156,
+      "apoyoX": 78,
+      "apoyoY": 142
+    },
+    {
+      "archivo": "1-utileria/bajo-autopista/cartel-distancia-100m.png",
+      "codigo": "distance",
+      "zona": "bajo-autopista",
+      "ancho": 130,
+      "alto": 137,
+      "apoyoX": 65,
+      "apoyoY": 129
+    },
+    {
+      "archivo": "1-utileria/bajo-autopista/cartel-distancia-200m.png",
+      "codigo": "distance",
+      "zona": "bajo-autopista",
+      "ancho": 130,
+      "alto": 137,
+      "apoyoX": 65,
+      "apoyoY": 129
+    },
+    {
+      "archivo": "1-utileria/bajo-autopista/cartel-distancia-300m.png",
+      "codigo": "distance",
+      "zona": "bajo-autopista",
+      "ancho": 130,
+      "alto": 137,
+      "apoyoX": 65,
+      "apoyoY": 129
+    },
+    {
+      "archivo": "1-utileria/bajo-autopista/tribuna-cuadro-1.png",
+      "codigo": "grandstand",
+      "zona": "bajo-autopista",
+      "ancho": 602,
+      "alto": 283,
+      "apoyoX": 301,
+      "apoyoY": 273
+    },
+    {
+      "archivo": "1-utileria/bajo-autopista/tribuna-cuadro-2.png",
+      "codigo": "grandstand",
+      "zona": "bajo-autopista",
+      "ancho": 602,
+      "alto": 283,
+      "apoyoX": 301,
+      "apoyoY": 273
+    },
+    {
+      "archivo": "1-utileria/bajo-autopista/tribuna-cuadro-3.png",
+      "codigo": "grandstand",
+      "zona": "bajo-autopista",
+      "ancho": 602,
+      "alto": 283,
+      "apoyoX": 301,
+      "apoyoY": 273
+    },
+    {
+      "archivo": "1-utileria/costa-rosa/palmera-lado-izquierdo.png",
+      "codigo": "palm",
+      "zona": "costa-rosa",
+      "ancho": 365,
+      "alto": 409,
+      "apoyoX": 221,
+      "apoyoY": 392
+    },
+    {
+      "archivo": "1-utileria/costa-rosa/palmera-lado-derecho.png",
+      "codigo": "palm",
+      "zona": "costa-rosa",
+      "ancho": 366,
+      "alto": 409,
+      "apoyoX": 140,
+      "apoyoY": 392
+    },
+    {
+      "archivo": "1-utileria/costa-rosa/cartel-1.png",
+      "codigo": "billboard",
+      "zona": "costa-rosa",
+      "ancho": 340,
+      "alto": 259,
+      "apoyoX": 170,
+      "apoyoY": 250
+    },
+    {
+      "archivo": "1-utileria/costa-rosa/cartel-2.png",
+      "codigo": "billboard",
+      "zona": "costa-rosa",
+      "ancho": 340,
+      "alto": 259,
+      "apoyoX": 170,
+      "apoyoY": 250
+    },
+    {
+      "archivo": "1-utileria/costa-rosa/cartel-3.png",
+      "codigo": "billboard",
+      "zona": "costa-rosa",
+      "ancho": 340,
+      "alto": 259,
+      "apoyoX": 170,
+      "apoyoY": 250
+    },
+    {
+      "archivo": "1-utileria/costa-rosa/cartel-4.png",
+      "codigo": "billboard",
+      "zona": "costa-rosa",
+      "ancho": 340,
+      "alto": 259,
+      "apoyoX": 170,
+      "apoyoY": 250
+    },
+    {
+      "archivo": "1-utileria/costa-rosa/cartel-5.png",
+      "codigo": "billboard",
+      "zona": "costa-rosa",
+      "ancho": 340,
+      "alto": 259,
+      "apoyoX": 170,
+      "apoyoY": 250
+    },
+    {
+      "archivo": "1-utileria/costa-rosa/cartel-6.png",
+      "codigo": "billboard",
+      "zona": "costa-rosa",
+      "ancho": 365,
+      "alto": 259,
+      "apoyoX": 170,
+      "apoyoY": 250
+    },
+    {
+      "archivo": "1-utileria/costa-rosa/flecha-curva-derecha.png",
+      "codigo": "chevron",
+      "zona": "costa-rosa",
+      "ancho": 122,
+      "alto": 113,
+      "apoyoX": 61,
+      "apoyoY": 105
+    },
+    {
+      "archivo": "1-utileria/costa-rosa/flecha-curva-izquierda.png",
+      "codigo": "chevron",
+      "zona": "costa-rosa",
+      "ancho": 122,
+      "alto": 113,
+      "apoyoX": 61,
+      "apoyoY": 105
+    },
+    {
+      "archivo": "1-utileria/costa-rosa/cartel-distancia-100m.png",
+      "codigo": "distance",
+      "zona": "costa-rosa",
+      "ancho": 78,
+      "alto": 121,
+      "apoyoX": 39,
+      "apoyoY": 113
+    },
+    {
+      "archivo": "1-utileria/costa-rosa/cartel-distancia-200m.png",
+      "codigo": "distance",
+      "zona": "costa-rosa",
+      "ancho": 78,
+      "alto": 121,
+      "apoyoX": 39,
+      "apoyoY": 113
+    },
+    {
+      "archivo": "1-utileria/costa-rosa/cartel-distancia-300m.png",
+      "codigo": "distance",
+      "zona": "costa-rosa",
+      "ancho": 78,
+      "alto": 121,
+      "apoyoX": 39,
+      "apoyoY": 113
+    },
+    {
+      "archivo": "1-utileria/costa-rosa/tribuna-cuadro-1.png",
+      "codigo": "grandstand",
+      "zona": "costa-rosa",
+      "ancho": 602,
+      "alto": 283,
+      "apoyoX": 301,
+      "apoyoY": 273
+    },
+    {
+      "archivo": "1-utileria/costa-rosa/tribuna-cuadro-2.png",
+      "codigo": "grandstand",
+      "zona": "costa-rosa",
+      "ancho": 602,
+      "alto": 283,
+      "apoyoX": 301,
+      "apoyoY": 273
+    },
+    {
+      "archivo": "1-utileria/costa-rosa/tribuna-cuadro-3.png",
+      "codigo": "grandstand",
+      "zona": "costa-rosa",
+      "ancho": 602,
+      "alto": 283,
+      "apoyoX": 301,
+      "apoyoY": 273
+    },
+    {
+      "archivo": "1-utileria/distrito-torre/arbol.png",
+      "codigo": "tree",
+      "zona": "distrito-torre",
+      "ancho": 198,
+      "alto": 299,
+      "apoyoX": 99,
+      "apoyoY": 290
+    },
+    {
+      "archivo": "1-utileria/distrito-torre/cartel-1.png",
+      "codigo": "billboard",
+      "zona": "distrito-torre",
+      "ancho": 340,
+      "alto": 259,
+      "apoyoX": 170,
+      "apoyoY": 250
+    },
+    {
+      "archivo": "1-utileria/distrito-torre/cartel-2.png",
+      "codigo": "billboard",
+      "zona": "distrito-torre",
+      "ancho": 340,
+      "alto": 259,
+      "apoyoX": 170,
+      "apoyoY": 250
+    },
+    {
+      "archivo": "1-utileria/distrito-torre/cartel-3.png",
+      "codigo": "billboard",
+      "zona": "distrito-torre",
+      "ancho": 340,
+      "alto": 259,
+      "apoyoX": 170,
+      "apoyoY": 250
+    },
+    {
+      "archivo": "1-utileria/distrito-torre/cartel-4.png",
+      "codigo": "billboard",
+      "zona": "distrito-torre",
+      "ancho": 340,
+      "alto": 259,
+      "apoyoX": 170,
+      "apoyoY": 250
+    },
+    {
+      "archivo": "1-utileria/distrito-torre/cartel-5.png",
+      "codigo": "billboard",
+      "zona": "distrito-torre",
+      "ancho": 340,
+      "alto": 259,
+      "apoyoX": 170,
+      "apoyoY": 250
+    },
+    {
+      "archivo": "1-utileria/distrito-torre/cartel-6.png",
+      "codigo": "billboard",
+      "zona": "distrito-torre",
+      "ancho": 365,
+      "alto": 259,
+      "apoyoX": 170,
+      "apoyoY": 250
+    },
+    {
+      "archivo": "1-utileria/distrito-torre/farola-lado-izquierdo.png",
+      "codigo": "lamp",
+      "zona": "distrito-torre",
+      "ancho": 141,
+      "alto": 346,
+      "apoyoX": 15,
+      "apoyoY": 331
+    },
+    {
+      "archivo": "1-utileria/distrito-torre/farola-lado-derecho.png",
+      "codigo": "lamp",
+      "zona": "distrito-torre",
+      "ancho": 141,
+      "alto": 346,
+      "apoyoX": 126,
+      "apoyoY": 331
+    },
+    {
+      "archivo": "1-utileria/distrito-torre/flecha-curva-derecha.png",
+      "codigo": "chevron",
+      "zona": "distrito-torre",
+      "ancho": 122,
+      "alto": 113,
+      "apoyoX": 61,
+      "apoyoY": 105
+    },
+    {
+      "archivo": "1-utileria/distrito-torre/flecha-curva-izquierda.png",
+      "codigo": "chevron",
+      "zona": "distrito-torre",
+      "ancho": 122,
+      "alto": 113,
+      "apoyoX": 61,
+      "apoyoY": 105
+    },
+    {
+      "archivo": "1-utileria/distrito-torre/cartel-distancia-100m.png",
+      "codigo": "distance",
+      "zona": "distrito-torre",
+      "ancho": 78,
+      "alto": 121,
+      "apoyoX": 39,
+      "apoyoY": 113
+    },
+    {
+      "archivo": "1-utileria/distrito-torre/cartel-distancia-200m.png",
+      "codigo": "distance",
+      "zona": "distrito-torre",
+      "ancho": 78,
+      "alto": 121,
+      "apoyoX": 39,
+      "apoyoY": 113
+    },
+    {
+      "archivo": "1-utileria/distrito-torre/cartel-distancia-300m.png",
+      "codigo": "distance",
+      "zona": "distrito-torre",
+      "ancho": 78,
+      "alto": 121,
+      "apoyoX": 39,
+      "apoyoY": 113
+    },
+    {
+      "archivo": "1-utileria/distrito-torre/tribuna-cuadro-1.png",
+      "codigo": "grandstand",
+      "zona": "distrito-torre",
+      "ancho": 602,
+      "alto": 283,
+      "apoyoX": 301,
+      "apoyoY": 273
+    },
+    {
+      "archivo": "1-utileria/distrito-torre/tribuna-cuadro-2.png",
+      "codigo": "grandstand",
+      "zona": "distrito-torre",
+      "ancho": 602,
+      "alto": 283,
+      "apoyoX": 301,
+      "apoyoY": 273
+    },
+    {
+      "archivo": "1-utileria/distrito-torre/tribuna-cuadro-3.png",
+      "codigo": "grandstand",
+      "zona": "distrito-torre",
+      "ancho": 602,
+      "alto": 283,
+      "apoyoX": 301,
+      "apoyoY": 273
+    },
+    {
+      "archivo": "1-utileria/anillo-neon/baliza.png",
+      "codigo": "beacon",
+      "zona": "anillo-neon",
+      "ancho": 284,
+      "alto": 592,
+      "apoyoX": 142,
+      "apoyoY": 582
+    },
+    {
+      "archivo": "1-utileria/anillo-neon/pantalla-1.png",
+      "codigo": "screen",
+      "zona": "anillo-neon",
+      "ancho": 432,
+      "alto": 454,
+      "apoyoX": 216,
+      "apoyoY": 446
+    },
+    {
+      "archivo": "1-utileria/anillo-neon/pantalla-2.png",
+      "codigo": "screen",
+      "zona": "anillo-neon",
+      "ancho": 432,
+      "alto": 454,
+      "apoyoX": 216,
+      "apoyoY": 446
+    },
+    {
+      "archivo": "1-utileria/anillo-neon/pantalla-3.png",
+      "codigo": "screen",
+      "zona": "anillo-neon",
+      "ancho": 432,
+      "alto": 454,
+      "apoyoX": 216,
+      "apoyoY": 446
+    },
+    {
+      "archivo": "1-utileria/anillo-neon/pantalla-4.png",
+      "codigo": "screen",
+      "zona": "anillo-neon",
+      "ancho": 432,
+      "alto": 454,
+      "apoyoX": 216,
+      "apoyoY": 446
+    },
+    {
+      "archivo": "1-utileria/anillo-neon/pantalla-5.png",
+      "codigo": "screen",
+      "zona": "anillo-neon",
+      "ancho": 432,
+      "alto": 454,
+      "apoyoX": 216,
+      "apoyoY": 446
+    },
+    {
+      "archivo": "1-utileria/anillo-neon/pantalla-6.png",
+      "codigo": "screen",
+      "zona": "anillo-neon",
+      "ancho": 432,
+      "alto": 454,
+      "apoyoX": 216,
+      "apoyoY": 446
+    },
+    {
+      "archivo": "1-utileria/anillo-neon/flecha-curva-derecha.png",
+      "codigo": "chevron",
+      "zona": "anillo-neon",
+      "ancho": 156,
+      "alto": 156,
+      "apoyoX": 78,
+      "apoyoY": 142
+    },
+    {
+      "archivo": "1-utileria/anillo-neon/flecha-curva-izquierda.png",
+      "codigo": "chevron",
+      "zona": "anillo-neon",
+      "ancho": 156,
+      "alto": 156,
+      "apoyoX": 78,
+      "apoyoY": 142
+    },
+    {
+      "archivo": "1-utileria/anillo-neon/cartel-distancia-100m.png",
+      "codigo": "distance",
+      "zona": "anillo-neon",
+      "ancho": 130,
+      "alto": 137,
+      "apoyoX": 65,
+      "apoyoY": 129
+    },
+    {
+      "archivo": "1-utileria/anillo-neon/cartel-distancia-200m.png",
+      "codigo": "distance",
+      "zona": "anillo-neon",
+      "ancho": 130,
+      "alto": 137,
+      "apoyoX": 65,
+      "apoyoY": 129
+    },
+    {
+      "archivo": "1-utileria/anillo-neon/cartel-distancia-300m.png",
+      "codigo": "distance",
+      "zona": "anillo-neon",
+      "ancho": 130,
+      "alto": 137,
+      "apoyoX": 65,
+      "apoyoY": 129
+    },
+    {
+      "archivo": "1-utileria/anillo-neon/tribuna-cuadro-1.png",
+      "codigo": "grandstand",
+      "zona": "anillo-neon",
+      "ancho": 602,
+      "alto": 283,
+      "apoyoX": 301,
+      "apoyoY": 273
+    },
+    {
+      "archivo": "1-utileria/anillo-neon/tribuna-cuadro-2.png",
+      "codigo": "grandstand",
+      "zona": "anillo-neon",
+      "ancho": 602,
+      "alto": 283,
+      "apoyoX": 301,
+      "apoyoY": 273
+    },
+    {
+      "archivo": "1-utileria/anillo-neon/tribuna-cuadro-3.png",
+      "codigo": "grandstand",
+      "zona": "anillo-neon",
+      "ancho": 602,
+      "alto": 283,
+      "apoyoX": 301,
+      "apoyoY": 273
+    }
+  ]
+}

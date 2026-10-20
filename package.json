@@ -1,0 +1,28 @@
+{
+  "name": "autodromo",
+  "version": "3.0.0",
+  "description": "Juego de carreras pseudo-3D para navegador con física real, propulsores de aire, rivales y sonido grabado. Sin dependencias en producción.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.js\"",
+    "test:watch": "node --test --watch \"tests/**/*.test.js\"",
+    "e2e": "node tests/e2e/smoke.mjs",
+    "serve": "python3 tools/servir.py 8080",
+    "build": "node tools/empaquetar.mjs",
+    "pistas": "node tools/verificar-pistas.mjs",
+    "simular": "node tools/simular.mjs",
+    "carrera": "node tools/carrera.mjs",
+    "sprites": "python3 design/generador/generar_sprites.py",
+    "sonidos": "tools/audio/descargar.sh && design/generador/.venv/bin/python -I tools/audio/preparar_sonidos.py respaldo/sonido-trabajo/wav respaldo/sonido-trabajo/kenney/Audio assets/audio",
+    "catalogo": "node tools/catalogo/exportar.mjs",
+    "dibujos": "sh tools/catalogo/empaquetar.sh"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "axe-core": "^4.14.0",
+    "playwright": "^1.56.0"
+  }
+}

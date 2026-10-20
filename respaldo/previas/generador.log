@@ -1,0 +1,50 @@
+cuna: 2648 triángulos
+saeta: 2378 triángulos
+bloque: 2200 triángulos
+volta: 2572 triángulos
+Hojas de sprites
+  cuna: giro -21° listo
+  cuna: giro -14° listo
+  cuna: giro -7° listo
+  cuna: giro +0° listo
+  cuna: giro +7° listo
+  cuna: giro +14° listo
+  cuna: giro +21° listo
+  cuna: hoja 4096x949, 112 recortes
+  saeta: giro -21° listo
+  saeta: giro -14° listo
+  saeta: giro -7° listo
+  saeta: giro +0° listo
+  saeta: giro +7° listo
+  saeta: giro +14° listo
+  saeta: giro +21° listo
+  saeta: hoja 4096x1329, 168 recortes
+  bloque: giro -21° listo
+  bloque: giro -14° listo
+  bloque: giro -7° listo
+  bloque: giro +0° listo
+  bloque: giro +7° listo
+  bloque: giro +14° listo
+  bloque: giro +21° listo
+  bloque: hoja 4096x1532, 165 recortes
+  volta: giro -21° listo
+  volta: giro -14° listo
+  volta: giro -7° listo
+  volta: giro +0° listo
+  volta: giro +7° listo
+  volta: giro +14° listo
+  volta: giro +21° listo
+  volta: hoja 4096x1340, 168 recortes
+Retratos
+  retrato cuna-lima
+  retrato cuna-coral
+  retrato saeta-hormigon
+  retrato saeta-grafito
+  retrato saeta-magenta
+  retrato bloque-crema
+  retrato bloque-turquesa
+  retrato bloque-mostaza
+  retrato volta-rubi
+  retrato volta-perla
+  retrato volta-noche
+Listo

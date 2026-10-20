@@ -1,0 +1,57 @@
+/*
+ * Tokens de diseño. Cada color sale de la paleta de design/ecosistema.json;
+ * tests/design-coherence.test.js falla si aparece uno ajeno.
+ */
+:root {
+  --color-ink: #1c1f3a;
+  --color-cream: #efebe4;
+  --color-warm-light: #fff4dc;
+  --color-indigo: #353a6e;
+  --color-concrete: #7f93b0;
+  --color-concrete-shade: #4f5d7a;
+  --color-lavender: #c7cbe0;
+  --color-lime: #b6e03a;
+  --color-magenta: #e8459a;
+  --color-cyan: #5fe3f0;
+  --color-amber: #ff7a24;
+  --color-night: #05060f;
+
+  --surface: var(--color-cream);
+  --on-surface: var(--color-ink);
+  --on-surface-muted: color-mix(in srgb, var(--color-ink) 78%, var(--color-cream));
+  --accent: var(--color-lime);
+  --plate: color-mix(in srgb, var(--color-ink) 82%, transparent);
+  --on-plate: var(--color-warm-light);
+
+  --font-display: 'Barlow Condensed', 'Arial Narrow', 'Roboto Condensed', sans-serif;
+  --step--1: 1rem;
+  --step-0: 1.125rem;
+  --step-1: 1.375rem;
+  --step-2: 1.75rem;
+  --step-3: 2.5rem;
+  --step-4: 3.5rem;
+  --step-5: 4.5rem;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+
+  --stroke: 3px;
+  --border: var(--stroke) solid var(--color-ink);
+  --radius-s: 8px;
+  --radius-m: 14px;
+  --radius-l: 22px;
+  --shadow-ink: 4px 4px 0 var(--color-ink);
+  --shadow-ink-pressed: 1px 1px 0 var(--color-ink);
+  --focus-ring: 0 0 0 3px var(--color-warm-light), 0 0 0 6px var(--color-ink);
+
+  --tap-min: 48px;
+  --pad-size: 76px;
+  --pad-size-large: 96px;
+  --duration: 160ms;
+  --dialog-width: 32rem;
+  --dialog-width-wide: 46rem;
+}

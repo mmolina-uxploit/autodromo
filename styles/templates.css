@@ -1,0 +1,7 @@
+/* Plantillas: disposición de la pantalla. Cada clase empieza con t- */
+
+.t-race { position: fixed; inset: 0; overflow: hidden; }
+.t-race__stage { position: absolute; inset: 0; outline: none; touch-action: none; }
+.t-race__stage:focus-visible { box-shadow: none; }
+.t-race__canvas { display: block; width: 100%; height: 100%; }
+.t-race__overlay { position: absolute; inset: 0; pointer-events: none; }

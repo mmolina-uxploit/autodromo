@@ -1,0 +1,692 @@
+import { clamp, hashNoise, lerp, wrap } from '../../domain/math.js';
+
+/**
+ * Fondo pintado con acabado de animé realista: cielo con cenit profundo y resplandor en el
+ * horizonte, estrellas y luna de noche, nubes con volumen iluminadas por el sol o por la ciudad,
+ * el horizonte propio de cada zona en capas con paralaje y una bruma de distancia que lo funde
+ * con el piso.
+ *
+ * Lo que no cambia de un cuadro a otro (siluetas, ventanas, nubes) se pinta una sola vez en
+ * lienzos fuera de pantalla y después solo se copia: más detalle con menos trabajo por cuadro.
+ * Lo que se mueve (sol, destellos del mar, haces de luz) se dibuja en cada cuadro.
+ */
+
+const gradients = new Map();
+const sprites = new Map();
+
+function offscreen(width, height) {
+  const w = Math.max(1, Math.ceil(width));
+  const h = Math.max(1, Math.ceil(height));
+  if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(w, h);
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  return canvas;
+}
+
+function cached(map, key, make) {
+  if (!map.has(key)) map.set(key, make());
+  return map.get(key);
+}
+
+/** '#rrggbb' con opacidad → 'rgba(r,g,b,a)'. */
+export function rgba(hex, alpha) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
+
+/** Mezcla dos colores '#rrggbb' (t = 0 → a, t = 1 → b). */
+export function mix(a, b, t) {
+  const x = parseInt(a.slice(1), 16);
+  const y = parseInt(b.slice(1), 16);
+  const ch = shift => Math.round(lerp((x >> shift) & 255, (y >> shift) & 255, t));
+  return `#${((1 << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).slice(1)}`;
+}
+
+/** Números al azar fijos por semilla, en [0, 1). */
+function seeded(seed) {
+  let i = 0;
+  return () => (hashNoise(seed, i++ * 1.618) + 1) / 2;
+}
+
+function linear(ctx, x0, y0, x1, y1, stops) {
+  const g = ctx.createLinearGradient(x0, y0, x1, y1);
+  for (const [at, color] of stops) g.addColorStop(at, color);
+  return g;
+}
+
+function radial(ctx, x, y, r, stops) {
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  for (const [at, color] of stops) g.addColorStop(at, color);
+  return g;
+}
+
+export const withUnit = viewport => ({ ...viewport, unit: viewport.unit ?? Math.min(viewport.width, viewport.height * 0.62) });
+
+// ───────────── cielo ─────────────
+
+export function paintSky(ctx, zone, viewport) {
+  const { width: W, horizon: hy } = viewport;
+  const atm = zone.atmosphere;
+  const key = `${zone.id}:${W}:${hy}`;
+  const base = cached(gradients, `cielo:${key}`, () =>
+    linear(ctx, 0, 0, 0, hy, zone.sky.map((color, i) => [i / (zone.sky.length - 1), color])));
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, W, hy + 1);
+  if (!atm) return;
+  // Cenit más profundo: el cielo de animé se oscurece y satura hacia arriba.
+  ctx.fillStyle = cached(gradients, `cenit:${key}`, () =>
+    linear(ctx, 0, 0, 0, hy * 0.8, [[0, rgba(atm.zenith, 0.85)], [0.55, rgba(atm.zenith, 0.25)], [1, rgba(atm.zenith, 0)]]));
+  ctx.fillRect(0, 0, W, hy * 0.8);
+  // Resplandor del horizonte: sol bajo, luz de la ciudad o del neón.
+  const [glow, alpha] = atm.glow;
+  ctx.fillStyle = cached(gradients, `resplandor:${key}`, () =>
+    linear(ctx, 0, hy * 0.35, 0, hy, [[0, rgba(glow, 0)], [0.7, rgba(glow, alpha * 0.55)], [1, rgba(glow, alpha)]]));
+  ctx.fillRect(0, hy * 0.35, W, hy * 0.65 + 1);
+}
+
+/** Estrellas fijas de las zonas nocturnas, con paralaje mínimo; las más brillantes titilan. */
+export function paintStars(ctx, { width: W, horizon: hy }, offset, clock = 0) {
+  ctx.fillStyle = '#fff4dc';
+  for (let i = 0; i < 90; i++) {
+    const x = wrap(((i * 977) % 1000) / 1000 * W - offset * 0.05, W);
+    const y = ((i * 613) % 1000) / 1000 * hy * 0.72;
+    const bright = i % 9 === 0;
+    const r = bright ? 1.8 : i % 3 ? 0.8 : 1.1;
+    const twinkle = bright ? 0.75 + 0.25 * Math.sin(clock * 2.3 + i) : 1;
+    // Cerca del horizonte la bruma las apaga.
+    ctx.globalAlpha = (0.3 + ((i * 37) % 10) / 18) * twinkle * clamp(1.15 - y / (hy * 0.72), 0.25, 1);
+    ctx.fillRect(x, y, r, r);
+    if (bright) {
+      ctx.globalAlpha *= 0.35;
+      ctx.fillRect(x - r, y + r / 2 - 0.3, r * 3, 0.6);
+      ctx.fillRect(x + r / 2 - 0.3, y - r, 0.6, r * 3);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+/** Luna con halo, para las noches que la tienen. */
+function paintMoon(ctx, zone, { width: W, horizon: hy, unit }, offset) {
+  const color = zone.atmosphere?.moon;
+  if (!color) return;
+  const r = unit * 0.032;
+  const sprite = cached(sprites, `luna:${zone.id}:${Math.round(r)}`, () => {
+    const size = r * 14;
+    const c = offscreen(size, size);
+    const g = c.getContext('2d');
+    const m = size / 2;
+    g.fillStyle = radial(g, m, m, m, [[0, rgba(color, 0.35)], [0.12, rgba(color, 0.18)], [0.4, rgba(color, 0.05)], [1, rgba(color, 0)]]);
+    g.fillRect(0, 0, size, size);
+    g.fillStyle = radial(g, m - r * 0.3, m - r * 0.3, r * 1.3, [[0, '#ffffff'], [0.6, color], [1, mix(color, '#9fb0d8', 0.35)]]);
+    g.beginPath();
+    g.arc(m, m, r, 0, Math.PI * 2);
+    g.fill();
+    // Mares lunares apenas marcados.
+    g.fillStyle = rgba('#9fb0d8', 0.22);
+    for (const [dx, dy, s] of [[-0.3, -0.1, 0.32], [0.25, 0.2, 0.22], [0.05, -0.35, 0.18]]) {
+      g.beginPath();
+      g.arc(m + dx * r, m + dy * r, s * r, 0, Math.PI * 2);
+      g.fill();
+    }
+    return c;
+  });
+  const x = wrap(W * 0.88 - offset * 0.05, W);
+  ctx.drawImage(sprite, x - sprite.width / 2, hy * 0.14 - sprite.height / 2);
+}
+
+// ───────────── nubes ─────────────
+
+/**
+ * Un cúmulo pintado: muchos bollos suaves con base plana, sombreado de abajo hacia arriba (o al
+ * revés si los ilumina el sol bajo o la ciudad), luces en cada bollo y un borde luminoso.
+ */
+function paintCloud(cloud, seed, width) {
+  const rnd = seeded(seed);
+  const height = width * 0.42;
+  const c = offscreen(width, height);
+  const g = c.getContext('2d');
+  const base = height * 0.8;
+  const puffs = [];
+  const n = 9 + Math.floor(rnd() * 6);
+  for (let i = 0; i < n; i++) {
+    const t = (i + 0.5) / n;
+    const dome = Math.sin(Math.PI * t);
+    const r = height * (0.14 + 0.24 * dome * (0.75 + 0.5 * rnd()));
+    puffs.push({ x: width * (0.1 + 0.8 * t + (rnd() - 0.5) * 0.05), y: base - r * (0.45 + 0.4 * rnd()), r });
+  }
+  for (let i = 0; i < n / 2; i++) {
+    const t = 0.3 + 0.4 * rnd();
+    const r = height * (0.16 + 0.12 * rnd());
+    puffs.push({ x: width * t, y: base - height * (0.32 + 0.18 * rnd()) - r * 0.3, r });
+  }
+  // Silueta: bollos de borde suave, cortados en la base.
+  const silhouette = (target, color, dx = 0, dy = 0) => {
+    target.save();
+    target.beginPath();
+    target.rect(0, 0, width, base + height * 0.04 + dy);
+    target.clip();
+    for (const p of puffs) {
+      const x = p.x + dx;
+      const y = p.y + dy;
+      target.fillStyle = radial(target, x, y, p.r, [[0, color], [0.78, color], [1, rgba(color, 0)]]);
+      target.fillRect(x - p.r, y - p.r, p.r * 2, p.r * 2);
+    }
+    target.restore();
+  };
+  silhouette(g, cloud.shade);
+  // Luz dentro de la silueta.
+  g.globalCompositeOperation = 'source-atop';
+  const above = cloud.lit === 'above';
+  g.fillStyle = linear(g, 0, 0, 0, base, above
+    ? [[0, cloud.light], [0.55, mix(cloud.light, cloud.shade, 0.35)], [1, cloud.shade]]
+    : [[0, cloud.shade], [0.6, mix(cloud.shade, cloud.light, 0.35)], [1, cloud.light]]);
+  g.globalAlpha = 0.85;
+  g.fillRect(0, 0, width, height);
+  g.globalAlpha = 1;
+  for (const p of puffs) {
+    const lx = p.x - p.r * 0.3;
+    const ly = above ? p.y - p.r * 0.35 : p.y + p.r * 0.45;
+    g.fillStyle = radial(g, lx, ly, p.r * 0.95, [[0, rgba(cloud.light, above ? 0.9 : 0.55)], [1, rgba(cloud.light, 0)]]);
+    g.fillRect(lx - p.r, ly - p.r, p.r * 2, p.r * 2);
+  }
+  // Borde luminoso del lado de la luz: la silueta menos ella misma corrida en contra de la luz
+  // deja una media luna suave sobre el borde iluminado.
+  const rim = offscreen(width, height);
+  const r = rim.getContext('2d');
+  const shift = height * 0.05;
+  silhouette(r, cloud.rim);
+  r.globalCompositeOperation = 'destination-out';
+  silhouette(r, '#000000', shift * 0.4, above ? shift : -shift);
+  g.globalCompositeOperation = 'source-atop';
+  g.globalAlpha = above ? 0.6 : 0.7;
+  g.drawImage(rim, 0, 0);
+  g.globalAlpha = 1;
+  // La base se deshace en bruma en vez de terminar en una línea recta.
+  g.globalCompositeOperation = 'destination-out';
+  g.fillStyle = linear(g, 0, base - height * 0.1, 0, base + height * 0.04, [[0, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,1)']]);
+  g.fillRect(0, base - height * 0.1, width, height * 0.3);
+  g.globalCompositeOperation = 'source-over';
+  return c;
+}
+
+function cloudSet(zone, unit, W) {
+  const cloud = zone.atmosphere.cloud;
+  return cached(sprites, `nubes:${zone.id}:${Math.round(W)}`, () => Array.from({ length: cloud.count }, (_, i) => {
+    const depth = (i + 0.5) / cloud.count;
+    const width = W * (0.14 + 0.26 * depth * (0.8 + 0.4 * ((i * 37) % 10) / 10));
+    return { depth, sprite: paintCloud(cloud, i * 17 + zone.id.length, width), seed: i };
+  }));
+}
+
+/** Nubes que derivan despacio, con paralaje mínimo: las cercanas más grandes y altas. */
+export function paintClouds(ctx, zone, viewport, offset, clock = 0) {
+  const { width: W, horizon: hy, unit } = withUnit(viewport);
+  if (!zone.atmosphere?.cloud) return;
+  for (const { depth, sprite, seed } of cloudSet(zone, unit, W)) {
+    const span = W + sprite.width;
+    const x = wrap(((seed * 211) % 1000) / 1000 * span - offset * (0.03 + 0.05 * depth) + clock * (2 + 4 * depth), span) - sprite.width;
+    const y = hy * (0.58 - 0.5 * depth) - sprite.height * 0.5;
+    ctx.globalAlpha = 0.55 + 0.45 * depth;
+    ctx.drawImage(sprite, x, y);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ───────────── sol ─────────────
+
+function sunX(W, offset) {
+  return wrap(0.5 * W - offset * 0.15, W);
+}
+
+/** Dónde está el sol en pantalla (solo en las zonas con sol bajo), o null. */
+export function sunPosition(zone, viewport, offset) {
+  if (!zone.atmosphere?.sun) return null;
+  const { width: W, height: H, horizon: hy } = viewport;
+  return { x: sunX(W, offset), y: hy - H * 0.02 };
+}
+
+/** Disco solar con halo y rayos suaves, apoyado en el horizonte. */
+export function paintSunGlare(ctx, zone, viewport, offset) {
+  const sun = zone.atmosphere?.sun;
+  if (!sun) return;
+  const { width: W, height: H, horizon: hy, unit } = withUnit(viewport);
+  const x = sunX(W, offset);
+  const y = hy - H * 0.02;
+  const r = unit * 0.1;
+  const halo = cached(sprites, `halo:${zone.id}:${Math.round(unit)}`, () => {
+    const size = unit * 1.1;
+    const c = offscreen(size, size);
+    const g = c.getContext('2d');
+    const m = size / 2;
+    g.fillStyle = radial(g, m, m, m, [[0, rgba(sun.core, 0.55)], [0.12, rgba(sun.halo, 0.42)], [0.35, rgba(sun.halo, 0.14)], [1, rgba(sun.halo, 0)]]);
+    g.fillRect(0, 0, size, size);
+    // Rayos: cuñas muy tenues que salen del sol hacia arriba.
+    g.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 9; i++) {
+      const a = -Math.PI / 2 + (i - 4) * 0.28 + hashNoise(i, 3) * 0.08;
+      const spread = 0.035 + 0.025 * (hashNoise(i, 5) + 1) / 2;
+      g.fillStyle = linear(g, m, m, m + Math.cos(a) * m * 0.8, m + Math.sin(a) * m * 0.8, [[0, rgba(sun.core, 0.07)], [0.5, rgba(sun.core, 0.025)], [1, rgba(sun.core, 0)]]);
+      g.beginPath();
+      g.moveTo(m, m);
+      g.lineTo(m + Math.cos(a - spread) * m, m + Math.sin(a - spread) * m);
+      g.lineTo(m + Math.cos(a + spread) * m, m + Math.sin(a + spread) * m);
+      g.closePath();
+      g.fill();
+    }
+    return c;
+  });
+  const disc = cached(sprites, `sol:${zone.id}:${Math.round(r)}`, () => {
+    const c = offscreen(r * 2 + 4, r * 2 + 4);
+    const g = c.getContext('2d');
+    const m = r + 2;
+    g.fillStyle = radial(g, m, m, r, [[0, '#ffffff'], [0.55, sun.core], [1, sun.halo]]);
+    g.beginPath();
+    g.arc(m, m, r, 0, Math.PI * 2);
+    g.fill();
+    return c;
+  });
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.drawImage(halo, x - halo.width / 2, y - halo.height / 2);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.drawImage(disc, x - disc.width / 2, y - disc.height / 2);
+}
+
+/** Destellos del sol sobre el mar: un camino de reflejos que titila. */
+function paintGlitter(ctx, zone, { width: W, height: H, horizon: hy, unit }, offset, clock) {
+  const sea = zone.atmosphere?.sea;
+  if (!sea) return;
+  const x = sunX(W, offset);
+  const top = hy - H * 0.045;
+  const band = H * 0.045;
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = sea.glitter;
+  const tick = Math.floor(clock * 7);
+  for (let i = 0; i < 34; i++) {
+    const d = ((i * 0.61803) % 1);
+    const y = top + band * (0.05 + 0.9 * d);
+    const spread = unit * (0.04 + 0.22 * d);
+    const dx = hashNoise(i, tick) * spread;
+    const w = unit * (0.01 + 0.03 * d) * (0.6 + 0.4 * Math.abs(hashNoise(i + 9, tick)));
+    ctx.globalAlpha = 0.25 + 0.45 * Math.abs(hashNoise(i + 3, tick));
+    ctx.fillRect(x + dx - w / 2, y, w, Math.max(1, unit * 0.0025));
+  }
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+// ───────────── horizonte por zona ─────────────
+
+/** Dibuja `draw(x)` en x, x − W y x + W: la capa se repite sin costura al desplazarse. */
+const tile = (W, x, draw) => { draw(x); draw(x - W); draw(x + W); };
+
+/** Fachada con ventanas: unas encendidas, otras no, siempre las mismas. */
+function windowsOn(g, x, top, w, h, colors, seed, size, chance) {
+  if (!colors) return;
+  const cols = Math.max(1, Math.floor(w / (size * 2.2)));
+  const rows = Math.max(1, Math.floor(h / (size * 2.6)));
+  const gapX = w / cols;
+  const gapY = h / rows;
+  for (let r = 0; r < rows - 1; r++) {
+    for (let c = 0; c < cols; c++) {
+      const n = (hashNoise(seed + c * 13.1, r * 7.7) + 1) / 2;
+      if (n > chance) continue;
+      g.globalAlpha = 0.45 + 0.55 * ((n * 7.3) % 1);
+      g.fillStyle = colors[Math.floor(n * 97) % colors.length];
+      g.fillRect(x + c * gapX + gapX * 0.25, top + r * gapY + gapY * 0.35, gapX * 0.5, gapY * 0.4);
+    }
+  }
+  g.globalAlpha = 1;
+}
+
+function palm(g, x, base, size, color, rim) {
+  const top = { x: x + size * 0.12, y: base - size };
+  g.lineCap = 'round';
+  const fronds = (lineWidth, dx, dy, stroke) => {
+    g.strokeStyle = stroke;
+    g.lineWidth = Math.max(2, size * lineWidth);
+    g.beginPath();
+    g.moveTo(x + dx, base);
+    g.quadraticCurveTo(x - size * 0.04 + dx, base - size * 0.55 + dy, top.x + dx, top.y + dy);
+    g.stroke();
+    g.lineWidth = Math.max(2, size * (lineWidth + 0.01));
+    for (const angle of [-2.7, -2.1, -1.4, -0.7, -0.1]) {
+      g.beginPath();
+      g.moveTo(top.x + dx, top.y + dy);
+      g.quadraticCurveTo(
+        top.x + Math.cos(angle) * size * 0.3 + dx, top.y + Math.sin(angle) * size * 0.25 + dy,
+        top.x + Math.cos(angle) * size * 0.48 + dx, top.y + Math.sin(angle) * size * 0.1 + size * 0.14 + dy
+      );
+      g.stroke();
+    }
+  };
+  // Contraluz: borde claro del lado del sol, cuerpo un poco más oscuro encima.
+  fronds(0.05, size * 0.012, -size * 0.008, rim);
+  fronds(0.05, 0, 0, color);
+}
+
+function capsule(g, x, w, h, base, fill) {
+  g.fillStyle = fill;
+  g.beginPath();
+  g.moveTo(x, base);
+  g.lineTo(x, base - h + w / 2);
+  g.arc(x + w / 2, base - h + w / 2, w / 2, Math.PI, 0);
+  g.lineTo(x + w, base);
+  g.closePath();
+  g.fill();
+}
+
+/** Capas de cada zona: { factor de paralaje, pintar(g, W, H, hy, unit) }. */
+const SKYLINES = {
+  viaduct(zone) {
+    const atm = zone.atmosphere;
+    const haze = atm.haze[0];
+    return [
+      { factor: 0.18, paint(g, W, H, hy) {
+        // Ciudad lejana: edificios brumosos con ventanas encendidas y balizas rojas en las azoteas.
+        const rnd = seeded(41);
+        for (let i = 0; i < 46; i++) {
+          const w = W * (0.018 + 0.03 * rnd());
+          const h = H * (0.04 + 0.12 * rnd() ** 1.6);
+          const x0 = rnd() * W;
+          tile(W, x0, x => {
+            g.fillStyle = mix('#1d2347', haze, 0.35);
+            g.fillRect(x, hy - h, w, h);
+            windowsOn(g, x, hy - h, w, h, atm.windows, i * 3.1, Math.max(1.2, H * 0.0035), 0.22);
+          });
+          if (i % 7 === 0) tile(W, x0, x => { g.fillStyle = '#ff4f5e'; g.fillRect(x + w / 2 - 1, hy - h - 3, 2, 2); });
+        }
+      } },
+      { factor: 0.35, paint(g, W, H, hy) {
+        for (const [nx, nw, nh, seed] of [[0.02, 0.07, 0.1, 1], [0.11, 0.05, 0.16, 2], [0.2, 0.08, 0.08, 3], [0.36, 0.06, 0.13, 4], [0.5, 0.09, 0.07, 5], [0.63, 0.05, 0.18, 6], [0.76, 0.08, 0.11, 7], [0.9, 0.06, 0.09, 8]]) {
+          tile(W, nx * W, x => {
+            const w = nw * W;
+            const h = nh * H;
+            g.fillStyle = '#353a6e';
+            g.fillRect(x, hy - h, w, h);
+            g.fillStyle = rgba('#7f93b0', 0.35);
+            g.fillRect(x, hy - h, Math.max(1.5, w * 0.06), h);
+            g.fillRect(x, hy - h, w, Math.max(1, H * 0.003));
+            windowsOn(g, x + w * 0.08, hy - h + H * 0.01, w * 0.84, h - H * 0.01, atm.windows, seed * 11.3, Math.max(1.6, H * 0.005), 0.32);
+          });
+        }
+      } },
+      { factor: 0, paint(g, W, H, hy) {
+        // Tablero del viaducto: canto iluminado arriba, panza oscura abajo.
+        const deckTop = hy - H * 0.15;
+        const deck = H * 0.035;
+        g.fillStyle = '#4f5d7a';
+        g.fillRect(0, deckTop, W, deck);
+        g.fillStyle = linear(g, 0, deckTop + deck * 0.55, 0, deckTop + deck, [[0, rgba('#1c1f3a', 0)], [1, rgba('#1c1f3a', 0.55)]]);
+        g.fillRect(0, deckTop + deck * 0.55, W, deck * 0.45);
+        g.fillStyle = '#7f93b0';
+        g.fillRect(0, deckTop, W, Math.max(1.5, H * 0.003));
+      } },
+      { factor: 0.8, paint(g, W, H, hy, unit) {
+        const deckTop = hy - H * 0.15;
+        const deck = H * 0.035;
+        for (let i = 0; i < 5; i++) {
+          tile(W, (i * 0.2 + 0.1) * W, x => {
+            const w = W * 0.024;
+            const top = deckTop + deck;
+            g.fillStyle = '#4f5d7a';
+            g.fillRect(x - w / 2, top, w, hy - top);
+            g.fillStyle = rgba('#1c1f3a', 0.35);
+            g.fillRect(x, top, w / 2, hy - top);
+            // Luz cálida de los faroles subiendo por la columna.
+            g.fillStyle = linear(g, 0, hy, 0, top, [[0, rgba('#ff7a24', 0.3)], [1, rgba('#ff7a24', 0)]]);
+            g.fillRect(x - w / 2, top, w, hy - top);
+          });
+        }
+        for (let i = 0; i < 10; i++) {
+          tile(W, (i * 0.1 + 0.05) * W, x => {
+            const y = deckTop + deck + H * 0.012;
+            const r = Math.max(2, unit * 0.007);
+            g.fillStyle = radial(g, x, y, r * 5, [[0, rgba(zone.accent, 0.45)], [1, rgba(zone.accent, 0)]]);
+            g.fillRect(x - r * 5, y - r * 5, r * 10, r * 10);
+            g.fillStyle = zone.accent;
+            g.beginPath();
+            g.arc(x, y, r, 0, Math.PI * 2);
+            g.fill();
+          });
+        }
+      } }
+    ];
+  },
+
+  coast(zone) {
+    const atm = zone.atmosphere;
+    const sea = atm.sea;
+    return [
+      { factor: 0.06, paint(g, W, H, hy) {
+        // Islas y cabos lejanos, casi borrados por la bruma.
+        const base = hy - H * 0.045;
+        g.fillStyle = mix('#c99cc6', atm.haze[0], 0.45);
+        for (const [nx, nw, nh] of [[0.08, 0.22, 0.022], [0.42, 0.12, 0.012], [0.66, 0.3, 0.03]]) {
+          tile(W, nx * W, x => {
+            g.beginPath();
+            g.moveTo(x, base);
+            g.bezierCurveTo(x + nw * W * 0.25, base - nh * H * 1.6, x + nw * W * 0.6, base - nh * H, x + nw * W, base);
+            g.closePath();
+            g.fill();
+          });
+        }
+      } },
+      { factor: 0, paint(g, W, H, hy) {
+        // Mar: más claro y rosado al fondo, más profundo cerca, con líneas de oleaje.
+        const top = hy - H * 0.045;
+        g.fillStyle = linear(g, 0, top, 0, hy, [[0, sea.far], [1, sea.near]]);
+        g.fillRect(0, top, W, hy - top + 1);
+        g.fillStyle = rgba('#ffffff', 0.18);
+        const rnd = seeded(9);
+        for (let i = 0; i < 40; i++) {
+          const d = rnd();
+          g.fillRect(rnd() * W, top + (hy - top) * d, W * (0.02 + 0.06 * d), Math.max(1, H * 0.0015));
+        }
+      } },
+      { factor: 0.7, paint(g, W, H, hy, unit) {
+        for (const [nx, s] of [[0.12, 1], [0.38, 0.55], [0.7, 0.8], [0.86, 0.6]]) {
+          tile(W, nx * W, x => palm(g, x, hy, unit * 0.32 * s, '#d97fcb', '#ffd9ef'));
+        }
+      } }
+    ];
+  },
+
+  towers(zone) {
+    const atm = zone.atmosphere;
+    const haze = atm.haze[0];
+    const colors = ['#52c1c4', '#d98fb8', '#e6b54a', '#c7cbe0'];
+    const tower = (g, x, w, h, hy, color, far) => {
+      const lit = mix(color, '#ffffff', far ? 0.25 : 0.18);
+      const shade = mix(color, '#546b8b', far ? 0.2 : 0.38);
+      capsule(g, x, w, h, hy, linear(g, x, 0, x + w, 0, [[0, lit], [0.45, color], [1, shade]]));
+      if (far) return;
+      // Vidrio: franja que refleja el cielo y pisos marcados.
+      g.save();
+      g.beginPath();
+      g.rect(x, hy - h + w / 2, w, h);
+      g.clip();
+      g.fillStyle = linear(g, 0, hy - h, 0, hy, [[0, rgba(atm.glass, 0.55)], [1, rgba(atm.glass, 0.1)]]);
+      g.fillRect(x + w * 0.12, hy - h, w * 0.16, h);
+      g.fillStyle = rgba('#1c1f3a', 0.12);
+      for (let y = hy - h + w * 0.6; y < hy; y += Math.max(4, w * 0.12)) g.fillRect(x, y, w, Math.max(1, w * 0.015));
+      g.restore();
+      g.fillStyle = rgba('#ffffff', 0.45);
+      g.beginPath();
+      g.arc(x + w * 0.4, hy - h + w * 0.42, w * 0.18, Math.PI * 1.1, Math.PI * 1.6);
+      g.lineTo(x + w * 0.4, hy - h + w * 0.42);
+      g.fill();
+    };
+    return [
+      { factor: 0.3, paint(g, W, H, hy) {
+        [[0.05, 0.05, 0.2], [0.27, 0.04, 0.26], [0.47, 0.05, 0.17], [0.66, 0.04, 0.24], [0.88, 0.05, 0.19]].forEach(([nx, nw, nh], i) => {
+          const color = mix(colors[(i + 2) % colors.length], haze, 0.5);
+          tile(W, nx * W, x => tower(g, x, nw * W, nh * H, hy, color, true));
+        });
+      } },
+      { factor: 0.6, paint(g, W, H, hy) {
+        [[0.14, 0.07, 0.3], [0.36, 0.06, 0.22], [0.58, 0.07, 0.34], [0.8, 0.06, 0.26]].forEach(([nx, nw, nh], i) => {
+          const color = mix(colors[i % colors.length], haze, 0.12);
+          tile(W, nx * W, x => tower(g, x, nw * W, nh * H, hy, color, false));
+        });
+      } }
+    ];
+  },
+
+  neon(zone) {
+    const atm = zone.atmosphere;
+    return [
+      { factor: 0.2, paint(g, W, H, hy) {
+        const rnd = seeded(77);
+        for (let i = 0; i < 40; i++) {
+          const w = W * (0.02 + 0.03 * rnd());
+          const h = H * (0.04 + 0.13 * rnd() ** 1.5);
+          tile(W, rnd() * W, x => {
+            g.fillStyle = '#16153a';
+            g.fillRect(x, hy - h, w, h);
+            windowsOn(g, x, hy - h, w, h, atm.windows, i * 5.3, Math.max(1.2, H * 0.0035), 0.28);
+          });
+        }
+      } },
+      { factor: 0.4, paint(g, W, H, hy, unit) {
+        const top = hy - H * 0.2;
+        const bottom = hy - H * 0.07;
+        for (const [nx, nw] of [[0.05, 0.14], [0.42, 0.08], [0.72, 0.18]]) {
+          tile(W, nx * W, x => {
+            const w = nw * W;
+            const glow = radial(g, x + w / 2, (top + bottom) / 2, w * 0.9, [[0, rgba('#ff4fa8', 0.28)], [1, rgba('#ff4fa8', 0)]]);
+            g.fillStyle = glow;
+            g.fillRect(x - w * 0.4, top - w * 0.9, w * 1.8, w * 1.8 + bottom - top);
+            g.fillStyle = linear(g, 0, top, 0, bottom, [[0, '#5fe8f0'], [1, '#ff4fa8']]);
+            g.fillRect(x, top, w, bottom - top);
+            g.fillStyle = rgba('#141a3a', 0.18);
+            for (let y = top; y < bottom; y += Math.max(3, unit * 0.006)) g.fillRect(x, y, w, 1);
+            g.strokeStyle = rgba('#fff4dc', 0.6);
+            g.lineWidth = 1;
+            g.strokeRect(x + 0.5, top + 0.5, w - 1, bottom - top - 1);
+          });
+        }
+      } },
+      { factor: 0.55, paint(g, W, H, hy, unit) {
+        tile(W, 0.3 * W, x => {
+          g.fillStyle = '#2b3160';
+          g.fillRect(x - unit * 0.015, hy - H * 0.3, unit * 0.03, H * 0.3);
+          g.fillStyle = radial(g, x, hy - H * 0.3, unit * 0.12, [[0, rgba(zone.accent, 0.4)], [1, rgba(zone.accent, 0)]]);
+          g.fillRect(x - unit * 0.12, hy - H * 0.3 - unit * 0.12, unit * 0.24, unit * 0.24);
+          g.fillStyle = '#3a2f7a';
+          g.beginPath();
+          g.arc(x, hy - H * 0.3, unit * 0.04, 0, Math.PI * 2);
+          g.fill();
+          g.strokeStyle = zone.accent;
+          g.lineWidth = Math.max(1, unit * 0.004);
+          g.stroke();
+        });
+      } },
+      { factor: 0, paint(g, W, H, hy) {
+        g.fillStyle = linear(g, 0, hy - H * 0.02, 0, hy, [[0, rgba(zone.accent, 0)], [1, rgba(zone.accent, 0.45)]]);
+        g.fillRect(0, hy - H * 0.02, W, H * 0.02);
+        g.fillStyle = zone.accent;
+        g.fillRect(0, hy - 3, W, 3);
+      } }
+    ];
+  }
+};
+
+/**
+ * Cada capa se pinta una vez y se recorta a la franja que tiene dibujo: copiar en cada cuadro
+ * un lienzo casi vacío del alto del cielo costaba más que todo lo demás junto.
+ */
+function croppedLayer(layer, W, H, hy, unit) {
+  const full = offscreen(W, hy + 2);
+  const g = full.getContext('2d');
+  layer.paint(g, W, H, hy, unit);
+  const data = g.getImageData(0, 0, full.width, full.height).data;
+  let top = full.height;
+  let bottom = -1;
+  for (let y = 0; y < full.height; y++) {
+    const row = y * full.width * 4;
+    for (let x = 3; x < full.width * 4; x += 16) {
+      if (data[row + x] > 2) {
+        if (y < top) top = y;
+        bottom = y;
+        break;
+      }
+    }
+  }
+  if (bottom < 0) return null;
+  top = Math.max(0, top - 2);
+  const height = bottom - top + 3;
+  const canvas = offscreen(W, height);
+  canvas.getContext('2d').drawImage(full, 0, top, full.width, height, 0, 0, full.width, height);
+  return { factor: layer.factor, canvas, top };
+}
+
+function skylineLayers(zone, vp) {
+  const { width: W, height: H, horizon: hy, unit } = vp;
+  return cached(sprites, `horizonte:${zone.id}:${W}:${H}`, () =>
+    (SKYLINES[zone.backdrop]?.(zone) ?? []).map(layer => croppedLayer(layer, W, H, hy, unit)).filter(Boolean));
+}
+
+/** Haces de reflectores que barren el cielo (zonas con `beams`). */
+function paintBeams(ctx, zone, { width: W, height: H, horizon: hy }, offset, clock) {
+  const beams = zone.atmosphere?.beams;
+  if (!beams) return;
+  ctx.globalCompositeOperation = 'lighter';
+  beams.forEach((color, i) => {
+    const x = wrap((0.2 + 0.55 * i) * W - offset * 0.3, W);
+    const angle = -Math.PI / 2 + Math.sin(clock * (0.35 + 0.12 * i) + i * 2) * 0.45;
+    const length = H * 0.9;
+    const spread = 0.05;
+    ctx.fillStyle = linear(ctx, x, hy, x + Math.cos(angle) * length, hy + Math.sin(angle) * length, [[0, rgba(color, 0.2)], [1, rgba(color, 0)]]);
+    ctx.beginPath();
+    ctx.moveTo(x, hy);
+    ctx.lineTo(x + Math.cos(angle - spread) * length, hy + Math.sin(angle - spread) * length);
+    ctx.lineTo(x + Math.cos(angle + spread) * length, hy + Math.sin(angle + spread) * length);
+    ctx.closePath();
+    ctx.fill();
+  });
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+/** Siluetas del horizonte propias de cada zona, en capas con paralaje. */
+export function paintSkyline(ctx, zone, viewport, offset) {
+  const vp = withUnit(viewport);
+  for (const { factor, canvas, top } of skylineLayers(zone, vp)) {
+    if (factor === 0) {
+      ctx.drawImage(canvas, 0, top);
+      continue;
+    }
+    const x = wrap(-offset * factor, vp.width);
+    ctx.drawImage(canvas, x, top);
+    ctx.drawImage(canvas, x - vp.width, top);
+  }
+}
+
+/** Bruma de distancia: funde la base de las siluetas con el horizonte. */
+function paintHaze(ctx, zone, { width: W, height: H, horizon: hy }) {
+  const haze = zone.atmosphere?.haze;
+  if (!haze) return;
+  ctx.fillStyle = cached(gradients, `bruma:${zone.id}:${W}:${hy}`, () =>
+    linear(ctx, 0, hy - H * 0.08, 0, hy, [[0, rgba(haze[0], 0)], [1, rgba(haze[0], haze[1])]]));
+  ctx.fillRect(0, hy - H * 0.08, W, H * 0.08 + 1);
+}
+
+/** `quality`: 2 alta, 1 media (sin resplandor de pantalla), 0 baja (además sin nubes, haces ni halo). */
+export function paintBackdrop(ctx, zone, viewport, offset, clock = 0, quality = 2) {
+  const vp = withUnit(viewport);
+  paintSky(ctx, zone, vp);
+  if (zone.time === 'noche') {
+    paintStars(ctx, vp, offset, clock);
+    paintMoon(ctx, zone, vp, offset);
+  }
+  if (quality > 0) {
+    paintBeams(ctx, zone, vp, offset, clock);
+    paintClouds(ctx, zone, vp, offset, clock);
+    paintSunGlare(ctx, zone, vp, offset);
+  }
+  paintSkyline(ctx, zone, vp, offset);
+  paintGlitter(ctx, zone, vp, offset, clock);
+  paintHaze(ctx, zone, vp);
+  ctx.fillStyle = zone.road.ground[0];
+  ctx.fillRect(0, vp.horizon, vp.width, vp.height - vp.horizon);
+}

@@ -1,0 +1,20 @@
+Sprites de Autódromo
+====================
+
+1-hojas/        Las 4 hojas que carga el juego (cuna, saeta, bloque, volta) y atlas.json,
+                que dice dónde está cada recorte, su desplazamiento y los puntos de anclaje
+                (ruedas, pivote, toberas, escapes).
+
+2-retratos/     11 retratos de tres cuartos, uno por auto y color, para el garaje.
+
+3-recortes/     Los 613 recortes de las hojas como PNG sueltos (448 x 308 px, fondo
+                transparente). Todos comparten el mismo ancla (el piso bajo el centro del
+                auto), así que se pueden apilar en orden:
+                    ruedas  ->  carroceria  ->  freno (al frenar)  ->  frente
+                Ruta: auto / color / inclinacion (plano o subida) / capa_giro±NN.png
+                El Bloque tiene 3 capas "frente" menos: en esos giros sus ruedas nunca
+                quedan delante de la carrocería.
+
+4-referencia-diseno/  Hojas de modelo y tablero del ecosistema visual (no las usa el juego).
+
+Todo sale de design/generador/generar_sprites.py y design/ecosistema.json.
