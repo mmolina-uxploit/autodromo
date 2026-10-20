@@ -2748,21 +2748,38 @@ const Action = Object.freeze({
   BOOST: 'boost'
 });
 
-/** Traduce acciones sostenidas en la intención de manejo del cuadro. */
+/** Ejes continuos que publica un mando. El teclado y el táctil no los usan. */
+const Axis = Object.freeze({ STEER: 'steer', THROTTLE: 'throttle', BRAKE: 'brake' });
+
+/**
+ * Traduce acciones sostenidas en la intención de manejo del cuadro.
+ *
+ * El eje continuo manda cuando está fuera del reposo: así medio stick es medio giro. En reposo
+ * decide el botón, que es lo que deja convivir la cruceta con el stick y el botón de freno con
+ * el gatillo. Sin mando no hay ejes y todo sale de los botones, como siempre.
+ */
 function toControls(actions, { autoThrottle = false } = {}) {
-  const steer = (actions.has(Action.RIGHT) ? 1 : 0) - (actions.has(Action.LEFT) ? 1 : 0);
-  const brake = actions.has(Action.BRAKE) ? 1 : 0;
-  const wantsThrottle = actions.has(Action.THROTTLE) || autoThrottle;
+  const axis = name => actions.axis?.(name) ?? null;
+  const pick = (name, digital) => {
+    const value = axis(name);
+    return value !== null && value !== 0 ? value : digital;
+  };
+
+  const steer = pick(Axis.STEER, (actions.has(Action.RIGHT) ? 1 : 0) - (actions.has(Action.LEFT) ? 1 : 0));
+  const brake = pick(Axis.BRAKE, actions.has(Action.BRAKE) ? 1 : 0);
+  const wantsThrottle = pick(Axis.THROTTLE, actions.has(Action.THROTTLE) || autoThrottle ? 1 : 0);
   return createControls({
     steer,
     brake,
-    throttle: brake ? 0 : Number(wantsThrottle),
+    // El freno recorta el acelerador en proporción a lo pisado: a fondo lo corta entero, como
+    // antes, pero un roce de gatillo deja seguir con parte de la fuerza en lugar de cortar todo.
+    throttle: wantsThrottle * (1 - brake),
     jump: actions.has(Action.JUMP),
     boost: actions.has(Action.BOOST)
   });
 }
 
-return { Action, toControls };
+return { Action, Axis, toControls };
 })();
 __m["src/application/race-events.js"] = (() => {
 /** Vocabulario de eventos y estados que la presentación puede escuchar sin tocar el dominio. */
@@ -3045,9 +3062,28 @@ function createSettingsStore({ repository, catalog }) {
 return { createSettingsStore };
 })();
 __m["src/application/action-set.js"] = (() => {
-/** Registro de acciones sostenidas por varias fuentes de entrada (teclado, táctil). */
+/**
+ * Registro de acciones sostenidas por varias fuentes de entrada (teclado, táctil, mando).
+ * Además de los botones lleva ejes continuos: el stick y los gatillos de un mando publican
+ * ahí su recorrido, que de otro modo se perdería al reducirlo a apretado o suelto.
+ */
 function createActionSet() {
   const holders = new Map();
+  const axes = new Map();
+
+  /** De todas las fuentes del eje, la que más lejos esté del reposo. */
+  function strongest(sources) {
+    let best = 0;
+    for (const value of sources.values()) if (Math.abs(value) > Math.abs(best)) best = value;
+    return best;
+  }
+
+  function dropAxes(source) {
+    for (const [name, sources] of axes) {
+      sources.delete(source);
+      if (sources.size === 0) axes.delete(name);
+    }
+  }
 
   return {
     press(action, source = 'default') {
@@ -3062,12 +3098,24 @@ function createActionSet() {
     },
     releaseSource(source) {
       for (const action of [...holders.keys()]) this.release(action, source);
+      dropAxes(source);
     },
     releaseAll() {
       holders.clear();
+      axes.clear();
     },
     has(action) {
       return holders.has(action);
+    },
+    /** Publica el recorrido de un eje continuo. */
+    setAxis(name, value, source = 'default') {
+      if (!axes.has(name)) axes.set(name, new Map());
+      axes.get(name).set(source, value);
+    },
+    /** Recorrido del eje, o null si ninguna fuente lo publica (teclado y táctil no lo hacen). */
+    axis(name) {
+      const sources = axes.get(name);
+      return sources?.size ? strongest(sources) : null;
     },
     snapshot() {
       return new Set(holders.keys());
@@ -3411,7 +3459,7 @@ function bindHoldControl(element, { onPress, onRelease }) {
 return { bindHoldControl };
 })();
 __m["src/infrastructure/input/gamepad.js"] = (() => {
-const { Action } = __m["src/application/controls-mapper.js"];
+const { Action, Axis } = __m["src/application/controls-mapper.js"];
 
 /**
  * Mando estándar (Gamepad API), leído en cada cuadro.
@@ -3423,6 +3471,39 @@ const GAMEPAD_MAP = Object.freeze({
 });
 
 const DEAD_ZONE = 0.35;
+// Reposo de los ejes continuos: lo justo para descartar el ruido del sensor, mucho menos que
+// el umbral de botón, que existe para que el stick no dispare acciones de menú sin querer.
+const STICK_REST = 0.08;
+const TRIGGER_REST = 0.05;
+// El apoyo lateral se satura cerca de medio recorrido del stick, así que un exponente mayor que
+// uno estira la zona central y reparte el control fino sobre más camino del pulgar.
+const STICK_CURVE = 1.45;
+
+/** Recorrido útil de un eje: descuenta el reposo, reescala a [0, 1] y le aplica la curva. */
+function travel(raw, rest, curve = 1) {
+  const size = Math.abs(raw);
+  if (!(size > rest)) return 0;
+  return Math.sign(raw) * Math.min(1, Math.pow((size - rest) / (1 - rest), curve));
+}
+
+/**
+ * Recorrido continuo del stick y los gatillos. Un mando que solo dé botones devuelve 0 en los
+ * tres ejes, y entonces manda la señal de botón.
+ */
+function gamepadAxes(pad) {
+  if (!pad) return null;
+  const x = pad.axes?.[0];
+  const trigger = i => {
+    const b = pad.buttons?.[i];
+    if (typeof b?.value === 'number') return b.value;
+    return b?.pressed ? 1 : 0;
+  };
+  return {
+    [Axis.STEER]: typeof x === 'number' ? travel(x, STICK_REST, STICK_CURVE) : 0,
+    [Axis.THROTTLE]: travel(trigger(GAMEPAD_MAP.RT), TRIGGER_REST),
+    [Axis.BRAKE]: travel(trigger(GAMEPAD_MAP.LT), TRIGGER_REST)
+  };
+}
 
 /** Acciones sostenidas que pide el mando en este instante. Puro: sirve para probarlo sin navegador. */
 function gamepadActions(pad) {
@@ -3454,16 +3535,25 @@ function createGamepadInput({ actions, isGameActive, onPause, onMenu, getPads = 
     return pressed;
   }
 
+  // Los ejes se sueltan aunque no hubiera ningún botón apretado: un stick a medias no enciende
+  // ninguna acción, así que mirar solo los botones lo dejaría publicado para siempre.
+  let axesLive = false;
+  function standDown() {
+    if (previous.size) { actions.releaseSource(SOURCE); previous = new Set(); }
+    else if (axesLive) actions.releaseSource(SOURCE);
+    axesLive = false;
+  }
+
   return {
     poll() {
       const pad = [...getPads()].find(p => p && p.connected);
       const pressed = edges(pad);
       if (!pad) {
-        if (previous.size) { actions.releaseSource(SOURCE); previous = new Set(); }
+        standDown();
         return;
       }
       if (!isGameActive()) {
-        if (previous.size) { actions.releaseSource(SOURCE); previous = new Set(); }
+        standDown();
         for (const [name, index] of Object.entries(GAMEPAD_MAP)) if (pressed[index]) onMenu?.(name);
         return;
       }
@@ -3472,11 +3562,14 @@ function createGamepadInput({ actions, isGameActive, onPause, onMenu, getPads = 
       for (const action of held) if (!previous.has(action)) actions.press(action, SOURCE);
       for (const action of previous) if (!held.has(action)) actions.release(action, SOURCE);
       previous = held;
+      const axes = gamepadAxes(pad);
+      for (const [name, value] of Object.entries(axes)) actions.setAxis?.(name, value, SOURCE);
+      axesLive = true;
     }
   };
 }
 
-return { GAMEPAD_MAP, gamepadActions, createGamepadInput };
+return { GAMEPAD_MAP, gamepadAxes, gamepadActions, createGamepadInput };
 })();
 __m["src/infrastructure/rendering/projection.js"] = (() => {
 /**
@@ -4809,11 +4902,11 @@ const { glowSprite, paintGlow } = __m["src/infrastructure/rendering/glow.js"];
 const HEAVE_GAIN = 2.4;
 const ROLL_GAIN = 1.8;
 const MAX_ROLL = 0.1;
-const SHADOW = 'rgba(42,45,85,';
-// Mancha suave para la sombra estirada: el borde se deshace en vez de cortar.
-const SHADOW_BLUR = Object.freeze([[0, 'rgba(42,45,85,1)'], [0.62, 'rgba(42,45,85,0.82)'], [1, 'rgba(42,45,85,0)']]);
-// El degradé cubre su óvalo a media densidad; esto compensa para igualar la mancha de contacto.
-const BLUR_GAIN = 2.3;
+// Sombra: núcleo tenue y caída larga. Casi toda la mancha es penumbra, así que el borde se
+// deshace en el asfalto en vez de recortarse como un disco.
+const SHADOW = Object.freeze([
+  [0, 'rgba(42,45,85,0.78)'], [0.38, 'rgba(42,45,85,0.6)'], [0.72, 'rgba(42,45,85,0.22)'], [1, 'rgba(42,45,85,0)']
+]);
 
 function glow(ctx, x, y, r, inner, outer, alpha = 1) {
   ctx.globalAlpha = alpha;
@@ -4830,38 +4923,31 @@ function drawLayer(ctx, atlas, key, ox, oy, k) {
 }
 
 /**
- * Sombra en el piso. `light` da la dirección en pantalla hacia donde cae y cuánto se estira
- * (en anchos de huella); sin dirección queda el óvalo de contacto. Al despegar se acorta,
- * se achica y se aclara: la sombra vuelve bajo el auto a medida que sube.
+ * Sombra en el piso, del mismo modelo que la de la utilería: un óvalo achatado que el sol bajo
+ * estira hacia la cámara y corre al lado opuesto a la luz. `light` es { lean, stretch }: cuánto
+ * se corre de costado (−1 a 1, en anchos de huella) y cuánto se alarga. Sin luz direccional
+ * queda la huella de contacto. Al despegar se achica, se acorta y se aclara.
  */
 function paintShadow(ctx, x, groundY, ppm, spec, height, light) {
   const lift = Math.max(0, height);
   const shrink = 1 / (1 + lift * 0.14);
-  const rx = spec.width * 0.62 * ppm * shrink;
-  if (rx < 1) return;
-  const ry = rx * 0.2;
-  const alpha = 0.45 / (1 + lift * 0.45);
-  const reach = (light?.length ?? 0) * rx / (1 + lift * 0.5);
-  if (reach < ry) {
-    ctx.fillStyle = `${SHADOW}${alpha.toFixed(3)})`;
-    ctx.beginPath();
-    ctx.ellipse(x, groundY, rx, ry, 0, 0, Math.PI * 2);
-    ctx.fill();
-    return;
-  }
-  // La huella es un óvalo que la perspectiva achata: cuánto mide a lo largo del rayo y cuánto
-  // a lo ancho depende del ángulo. La sombra es esa huella corrida media longitud hacia cada lado.
-  const angle = Math.atan2(light.dy, light.dx);
-  const c = Math.cos(angle);
-  const s = Math.sin(angle);
-  const along = Math.hypot(rx * c, ry * s) + reach / 2;
-  const across = Math.hypot(rx * s, ry * c);
-  ctx.save();
-  ctx.translate(x + light.dx * reach / 2, groundY + light.dy * reach / 2);
-  ctx.rotate(angle);
-  ctx.globalAlpha *= Math.min(1, alpha * BLUR_GAIN);
-  ctx.drawImage(glowSprite(SHADOW_BLUR), -along, -across, along * 2, across * 2);
-  ctx.restore();
+  const w = spec.width * 1.34 * ppm * shrink;
+  if (w < 2) return;
+  const fade = 1 / (1 + lift * 0.5);
+  const stretch = (light?.stretch ?? 0) * fade;
+  const h = w * (0.26 + stretch);
+  // Con el sol bajo la sombra sale hacia la cámara, así que casi toda cae por debajo del
+  // punto de apoyo; con el sol alto se reparte alrededor.
+  const drop = h * 0.5 * Math.min(0.5, stretch * 0.8);
+  const prev = ctx.globalAlpha;
+  ctx.globalAlpha = prev * fade;
+  ctx.drawImage(
+    glowSprite(SHADOW),
+    x - w / 2 + (light?.lean ?? 0) * w * 0.22,
+    groundY - h / 2 + drop,
+    w, h
+  );
+  ctx.globalAlpha = prev;
 }
 
 function liftJets(ctx, points, toScreen, groundY, ppm, clock, strength) {
@@ -5188,9 +5274,9 @@ const PARTICLE_NEAR = 4.5;
 const INK = '#1c1f3a';
 const STATUS_COUNTDOWN = 'countdown';
 const STATUS_RUNNING = 'running';
-// Sol alto: la sombra cae corta y apenas hacia la derecha (la luz entra de arriba a la izquierda,
-// igual que la de los árboles y los carteles).
-const DAY_LIGHT = Object.freeze({ dx: 0.38, dy: 0.92, length: 1.1 });
+// Sol alto: la sombra queda corta y apenas corrida a la derecha (la luz entra de arriba a la
+// izquierda, igual que la de los árboles y los carteles).
+const DAY_LIGHT = Object.freeze({ lean: 0.5, stretch: 0.1 });
 const TAIL_GLOW = Object.freeze([[0, 'rgba(244,50,80,0.9)'], [1, 'rgba(244,50,80,0)']]);
 const TAIL_STREAK = Object.freeze([[0, 'rgba(255,60,90,0.85)'], [0.5, 'rgba(255,41,73,0.35)'], [1, 'rgba(255,41,73,0)']]);
 const SUN_PATH = Object.freeze([[0, 'rgba(255,248,230,0.9)'], [0.35, 'rgba(255,207,158,0.45)'], [1, 'rgba(255,207,158,0)']]);
@@ -5767,18 +5853,13 @@ function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = () => '#7
   }
 
   /**
-   * Hacia dónde cae la sombra de un auto en pantalla. Con el sol bajo apunta lejos de él, así
-   * que de frente se estira hacia la cámara y de costado cruza la pista; con el sol alto cae
-   * corta; de noche, sin una luz que domine, queda solo la mancha de contacto.
+   * Cómo cae la sombra de un auto. Con el sol bajo se estira hacia la cámara y se corre al lado
+   * contrario al sol, tanto más cuanto más de costado lo tenga; con el sol alto queda corta;
+   * de noche, sin una luz que domine, queda solo la huella de contacto.
    */
-  function shadowLight(x, groundY, vp) {
+  function shadowLight(x, vp) {
     const sun = sunPosition(view.zone, vp, view.skyOffset);
-    if (sun) {
-      const vx = x - sun.x;
-      const vy = Math.max(1, groundY - sun.y);
-      const m = Math.hypot(vx, vy);
-      return { dx: vx / m, dy: vy / m, length: 3.4 };
-    }
+    if (sun) return { lean: clamp((x - sun.x) / (vp.width * 0.5), -1, 1), stretch: 0.78 };
     return view.zone.time === 'día' ? DAY_LIGHT : null;
   }
 
@@ -5810,7 +5891,7 @@ function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = () => '#7
     }
     withClip(bands[at.k].clip, vp, groundY, () => paintCar(ctx, atlas, car, {
       x, y, groundY, ppm: at.scale, yaw, incline, spec, clock: view.clock, swatch: colorOf(car),
-      alpha: blink * (1 - fog), light: shadowLight(x, groundY, vp)
+      alpha: blink * (1 - fog), light: shadowLight(x, vp)
     }));
     if (zone.time === 'noche') {
       tailGlow(x, y, at.scale, car.brake > 0 || car.reversing, blink * (1 - fog));
@@ -8397,7 +8478,7 @@ function HelpPanel({ onDone }) {
           ])),
         h('section', { class: 'o-help__section' },
           Heading({ level: 3, text: 'Mando' }),
-          Text({ text: 'Stick o cruceta para dirigir, gatillo derecho acelera, gatillo izquierdo frena, A salta, X o RB empuja, Start pausa. En los menús la cruceta mueve el foco y A confirma.' })),
+          Text({ text: 'Stick o cruceta para dirigir, gatillo derecho acelera, gatillo izquierdo frena, A salta, X o RB empuja, Start pausa. El stick y los gatillos valen por recorrido: medio stick es medio giro. En los menús la cruceta mueve el foco y A confirma.' })),
         h('section', { class: 'o-help__section' },
           Heading({ level: 3, text: 'Pantalla táctil' }),
           Text({ text: 'Dirección abajo a la izquierda; freno y acelerador abajo a la derecha, con Salto y Empuje encima. Podés usar varios dedos a la vez e invertir los lados en Ajustes.' })),

@@ -22,9 +22,9 @@ const PARTICLE_NEAR = 4.5;
 const INK = '#1c1f3a';
 const STATUS_COUNTDOWN = 'countdown';
 const STATUS_RUNNING = 'running';
-// Sol alto: la sombra cae corta y apenas hacia la derecha (la luz entra de arriba a la izquierda,
-// igual que la de los árboles y los carteles).
-const DAY_LIGHT = Object.freeze({ dx: 0.38, dy: 0.92, length: 1.1 });
+// Sol alto: la sombra queda corta y apenas corrida a la derecha (la luz entra de arriba a la
+// izquierda, igual que la de los árboles y los carteles).
+const DAY_LIGHT = Object.freeze({ lean: 0.5, stretch: 0.1 });
 const TAIL_GLOW = Object.freeze([[0, 'rgba(244,50,80,0.9)'], [1, 'rgba(244,50,80,0)']]);
 const TAIL_STREAK = Object.freeze([[0, 'rgba(255,60,90,0.85)'], [0.5, 'rgba(255,41,73,0.35)'], [1, 'rgba(255,41,73,0)']]);
 const SUN_PATH = Object.freeze([[0, 'rgba(255,248,230,0.9)'], [0.35, 'rgba(255,207,158,0.45)'], [1, 'rgba(255,207,158,0)']]);
@@ -601,18 +601,13 @@ export function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = ()
   }
 
   /**
-   * Hacia dónde cae la sombra de un auto en pantalla. Con el sol bajo apunta lejos de él, así
-   * que de frente se estira hacia la cámara y de costado cruza la pista; con el sol alto cae
-   * corta; de noche, sin una luz que domine, queda solo la mancha de contacto.
+   * Cómo cae la sombra de un auto. Con el sol bajo se estira hacia la cámara y se corre al lado
+   * contrario al sol, tanto más cuanto más de costado lo tenga; con el sol alto queda corta;
+   * de noche, sin una luz que domine, queda solo la huella de contacto.
    */
-  function shadowLight(x, groundY, vp) {
+  function shadowLight(x, vp) {
     const sun = sunPosition(view.zone, vp, view.skyOffset);
-    if (sun) {
-      const vx = x - sun.x;
-      const vy = Math.max(1, groundY - sun.y);
-      const m = Math.hypot(vx, vy);
-      return { dx: vx / m, dy: vy / m, length: 3.4 };
-    }
+    if (sun) return { lean: clamp((x - sun.x) / (vp.width * 0.5), -1, 1), stretch: 0.78 };
     return view.zone.time === 'día' ? DAY_LIGHT : null;
   }
 
@@ -644,7 +639,7 @@ export function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = ()
     }
     withClip(bands[at.k].clip, vp, groundY, () => paintCar(ctx, atlas, car, {
       x, y, groundY, ppm: at.scale, yaw, incline, spec, clock: view.clock, swatch: colorOf(car),
-      alpha: blink * (1 - fog), light: shadowLight(x, groundY, vp)
+      alpha: blink * (1 - fog), light: shadowLight(x, vp)
     }));
     if (zone.time === 'noche') {
       tailGlow(x, y, at.scale, car.brake > 0 || car.reversing, blink * (1 - fog));

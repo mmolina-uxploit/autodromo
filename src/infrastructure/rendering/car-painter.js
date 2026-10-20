@@ -10,11 +10,11 @@ import { glowSprite, paintGlow } from './glow.js';
 const HEAVE_GAIN = 2.4;
 const ROLL_GAIN = 1.8;
 const MAX_ROLL = 0.1;
-const SHADOW = 'rgba(42,45,85,';
-// Mancha suave para la sombra estirada: el borde se deshace en vez de cortar.
-const SHADOW_BLUR = Object.freeze([[0, 'rgba(42,45,85,1)'], [0.62, 'rgba(42,45,85,0.82)'], [1, 'rgba(42,45,85,0)']]);
-// El degradé cubre su óvalo a media densidad; esto compensa para igualar la mancha de contacto.
-const BLUR_GAIN = 2.3;
+// Sombra: núcleo tenue y caída larga. Casi toda la mancha es penumbra, así que el borde se
+// deshace en el asfalto en vez de recortarse como un disco.
+const SHADOW = Object.freeze([
+  [0, 'rgba(42,45,85,0.78)'], [0.38, 'rgba(42,45,85,0.6)'], [0.72, 'rgba(42,45,85,0.22)'], [1, 'rgba(42,45,85,0)']
+]);
 
 function glow(ctx, x, y, r, inner, outer, alpha = 1) {
   ctx.globalAlpha = alpha;
@@ -31,38 +31,31 @@ function drawLayer(ctx, atlas, key, ox, oy, k) {
 }
 
 /**
- * Sombra en el piso. `light` da la dirección en pantalla hacia donde cae y cuánto se estira
- * (en anchos de huella); sin dirección queda el óvalo de contacto. Al despegar se acorta,
- * se achica y se aclara: la sombra vuelve bajo el auto a medida que sube.
+ * Sombra en el piso, del mismo modelo que la de la utilería: un óvalo achatado que el sol bajo
+ * estira hacia la cámara y corre al lado opuesto a la luz. `light` es { lean, stretch }: cuánto
+ * se corre de costado (−1 a 1, en anchos de huella) y cuánto se alarga. Sin luz direccional
+ * queda la huella de contacto. Al despegar se achica, se acorta y se aclara.
  */
 export function paintShadow(ctx, x, groundY, ppm, spec, height, light) {
   const lift = Math.max(0, height);
   const shrink = 1 / (1 + lift * 0.14);
-  const rx = spec.width * 0.62 * ppm * shrink;
-  if (rx < 1) return;
-  const ry = rx * 0.2;
-  const alpha = 0.45 / (1 + lift * 0.45);
-  const reach = (light?.length ?? 0) * rx / (1 + lift * 0.5);
-  if (reach < ry) {
-    ctx.fillStyle = `${SHADOW}${alpha.toFixed(3)})`;
-    ctx.beginPath();
-    ctx.ellipse(x, groundY, rx, ry, 0, 0, Math.PI * 2);
-    ctx.fill();
-    return;
-  }
-  // La huella es un óvalo que la perspectiva achata: cuánto mide a lo largo del rayo y cuánto
-  // a lo ancho depende del ángulo. La sombra es esa huella corrida media longitud hacia cada lado.
-  const angle = Math.atan2(light.dy, light.dx);
-  const c = Math.cos(angle);
-  const s = Math.sin(angle);
-  const along = Math.hypot(rx * c, ry * s) + reach / 2;
-  const across = Math.hypot(rx * s, ry * c);
-  ctx.save();
-  ctx.translate(x + light.dx * reach / 2, groundY + light.dy * reach / 2);
-  ctx.rotate(angle);
-  ctx.globalAlpha *= Math.min(1, alpha * BLUR_GAIN);
-  ctx.drawImage(glowSprite(SHADOW_BLUR), -along, -across, along * 2, across * 2);
-  ctx.restore();
+  const w = spec.width * 1.34 * ppm * shrink;
+  if (w < 2) return;
+  const fade = 1 / (1 + lift * 0.5);
+  const stretch = (light?.stretch ?? 0) * fade;
+  const h = w * (0.26 + stretch);
+  // Con el sol bajo la sombra sale hacia la cámara, así que casi toda cae por debajo del
+  // punto de apoyo; con el sol alto se reparte alrededor.
+  const drop = h * 0.5 * Math.min(0.5, stretch * 0.8);
+  const prev = ctx.globalAlpha;
+  ctx.globalAlpha = prev * fade;
+  ctx.drawImage(
+    glowSprite(SHADOW),
+    x - w / 2 + (light?.lean ?? 0) * w * 0.22,
+    groundY - h / 2 + drop,
+    w, h
+  );
+  ctx.globalAlpha = prev;
 }
 
 function liftJets(ctx, points, toScreen, groundY, ppm, clock, strength) {

@@ -23,7 +23,7 @@ export function HelpPanel({ onDone }) {
           ])),
         h('section', { class: 'o-help__section' },
           Heading({ level: 3, text: 'Mando' }),
-          Text({ text: 'Stick o cruceta para dirigir, gatillo derecho acelera, gatillo izquierdo frena, A salta, X o RB empuja, Start pausa. En los menús la cruceta mueve el foco y A confirma.' })),
+          Text({ text: 'Stick o cruceta para dirigir, gatillo derecho acelera, gatillo izquierdo frena, A salta, X o RB empuja, Start pausa. El stick y los gatillos valen por recorrido: medio stick es medio giro. En los menús la cruceta mueve el foco y A confirma.' })),
         h('section', { class: 'o-help__section' },
           Heading({ level: 3, text: 'Pantalla táctil' }),
           Text({ text: 'Dirección abajo a la izquierda; freno y acelerador abajo a la derecha, con Salto y Empuje encima. Podés usar varios dedos a la vez e invertir los lados en Ajustes.' })),

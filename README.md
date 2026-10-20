@@ -32,7 +32,7 @@ Con `?semilla=7` en la URL la grilla y los rivales se repiten igual en cada carr
 
 | Acción | Teclado | Mando | Táctil |
 |---|---|---|---|
-| Dirigir | ← → o A D | Stick o cruceta | ◀ ▶ |
+| Dirigir | ← → o A D | Stick (progresivo) o cruceta | ◀ ▶ |
 | Acelerar | ↑ o W | Gatillo derecho | Acelerar |
 | Frenar y marcha atrás | ↓ o S | Gatillo izquierdo o B | Freno |
 | Propulsor de salto (toque) y planeo (sostenido) | Espacio o J | A | Salto |
