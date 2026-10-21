@@ -419,10 +419,13 @@ export function paintProp(ctx, kind, x, y, ppm, options) {
 /**
  * Qué hay al costado de cada segmento. Determinista por índice: el mismo segmento
  * siempre muestra lo mismo. Devuelve una lista de { kind, side, offset (m desde la defensa) }.
+ *
+ * `out` permite pasar un arreglo propio y reutilizarlo: así no se arma uno nuevo por banda
+ * y por cuadro.
  */
-export function propsAt(segment, zone, track, boards = null) {
+export function propsAt(segment, zone, track, boards = null, out = []) {
   const i = segment.index;
-  const out = [];
+  out.length = 0;
   if (segment.gap) return out;
   const board = boards?.get(i);
   if (board) out.push({ kind: 'distance', side: board.side, offset: 0.8, turn: board.meters });

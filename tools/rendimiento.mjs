@@ -15,6 +15,13 @@ import { chromium } from 'playwright';
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.m4a': 'audio/mp4', '.wav': 'audio/wav' };
 const [trackId = 'anillo-neon', frameArg = '900', qualityArg = 'alta'] = process.argv.slice(2);
+// El juego ignora una calidad que no reconoce y se queda en alta. Para una herramienta de
+// medición eso es peor que fallar: devuelve números de otro nivel sin decirlo.
+const CALIDADES = ['alta', 'media', 'baja'];
+if (!CALIDADES.includes(qualityArg)) {
+  console.error(`Calidad desconocida: «${qualityArg}». Usá una de: ${CALIDADES.join(', ')}.`);
+  process.exit(1);
+}
 const FRAMES = Number(frameArg);
 
 const server = await new Promise(done => {

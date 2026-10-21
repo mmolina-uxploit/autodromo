@@ -19,6 +19,16 @@ const wobble = (t, seed) => {
 const NEAR = 0.6;
 const CAR_NEAR = 3.2;
 const PARTICLE_NEAR = 4.5;
+// Más cerca que esto no se descarta nada: en la cresta de una loma las bandas se comprimen
+// sin estar lejos, y ahí lo que hay al costado sí se ve.
+const DETAIL_NEAR = 40;
+/**
+ * Qué recorta cada nivel de calidad, de baja a alta. `detail` es el alto en píxeles por debajo
+ * del cual una banda deja de dibujar muro, utilería y pórtico: a 0,5 px lo que hay al costado
+ * mide menos que un píxel y no se distingue. `ratio` es la escala máxima de píxel del lienzo.
+ * Estos dos mueven la aguja; apagar efectos de pantalla vale unas pocas llamadas por cuadro.
+ */
+const TIERS = Object.freeze([{ detail: 1.8, ratio: 1.1 }, { detail: 0.9, ratio: 1.4 }, { detail: 0.5, ratio: 1.75 }]);
 const INK = '#1c1f3a';
 const STATUS_COUNTDOWN = 'countdown';
 const STATUS_RUNNING = 'running';
@@ -78,6 +88,8 @@ export function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = ()
     // Calidad gráfica: 2 alta, 1 media (sin resplandor de pantalla), 0 baja (además sin nubes,
     // halo del sol, destello ni camino de luz). La baja el ciclo si el equipo no llega.
     quality: 2,
+    detail: TIERS[2].detail,
+    ratio: TIERS[2].ratio,
     clock: 0,
     skyOffset: 0,
     camS: 0,
@@ -91,7 +103,7 @@ export function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = ()
   };
 
   function resize() {
-    const ratio = Math.min(globalThis.devicePixelRatio || 1, cameraConfig.maxPixelRatio);
+    const ratio = Math.min(globalThis.devicePixelRatio || 1, cameraConfig.maxPixelRatio, view.ratio);
     const width = Math.max(1, Math.round(canvas.clientWidth * ratio));
     const height = Math.max(1, Math.round(canvas.clientHeight * ratio));
     if (canvas.width !== width || canvas.height !== height) {
@@ -388,6 +400,10 @@ export function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = ()
   }
 
   const wallPoints = [0, 0, 0, 0, 0, 0, 0, 0];
+  // Los dos costados del muro, reutilizados: armarlos con map() costaba tres arreglos por banda.
+  const wallSides = [[0, 0], [0, 0]];
+  // Utilería de la banda en curso, reutilizada por el mismo motivo.
+  const propList = [];
 
   function paintWalls(e, vp) {
     const { zone, track } = view;
@@ -399,7 +415,11 @@ export function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = ()
     const tf = e.yF - H * e.sF;
     if (tn > clip && tf > clip) return;
     const night = zone.time === 'noche';
-    const xs = [-1, 1].map(side => [e.xN + side * B * e.sN, e.xF + side * B * e.sF]);
+    wallSides[0][0] = e.xN - B * e.sN;
+    wallSides[0][1] = e.xF - B * e.sF;
+    wallSides[1][0] = e.xN + B * e.sN;
+    wallSides[1][1] = e.xF + B * e.sF;
+    const xs = wallSides;
 
     ctx.fillStyle = zone.wall.face[e.seg.band];
     ctx.beginPath();
@@ -568,7 +588,7 @@ export function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = ()
     const { zone, track } = view;
     if (e.zN < 8) return;
     const night = zone.time === 'noche';
-    for (const prop of propsAt(e.seg, zone, track, boards)) {
+    for (const prop of propsAt(e.seg, zone, track, boards, propList)) {
       const lateral = prop.side * (track.barrier + prop.offset);
       const x = e.xN + lateral * e.sN;
       if (x < -vp.width * 0.5 || x > vp.width * 1.5) continue;
@@ -1026,7 +1046,15 @@ export function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = ()
       minimap.setTrack(next);
     },
     setReducedMotion(value) { view.reducedMotion = value; },
-    setQuality(value) { view.quality = clamp(Math.round(value), 0, 2); },
+    setQuality(value) {
+      view.quality = clamp(Math.round(value), 0, 2);
+      const tier = TIERS[view.quality];
+      view.detail = tier.detail;
+      if (view.ratio !== tier.ratio) {
+        view.ratio = tier.ratio;
+        resize();
+      }
+    },
     get quality() { return view.quality; },
 
     /** Dibuja un cuadro. `focusId` elige el auto que sigue la cámara (por defecto, el jugador). */
@@ -1076,9 +1104,14 @@ export function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = ()
         if (fade < 0.02) continue;
         for (const mark of buckets[k].marks) paintMark(mark, vp, k);
         ctx.globalAlpha = fade;
-        paintWalls(e, vp);
-        paintProps(e, vp);
-        paintOverhead(e, vp, race);
+        // Una banda lejana de menos de medio píxel de alto no puede mostrar nada al costado:
+        // el muro mide poco más de un metro y el poste más alto, siete y medio, que a esa
+        // distancia siguen siendo menos de un píxel. Saltearla es la mitad del trabajo del cuadro.
+        if (e.zN < DETAIL_NEAR || e.yN - e.yF >= view.detail) {
+          paintWalls(e, vp);
+          paintProps(e, vp);
+          paintOverhead(e, vp, race);
+        }
         ctx.globalAlpha = 1;
         for (const item of buckets[k].parts) paintParticle(item, vp);
         for (const item of buckets[k].cars) paintCarAt(item, vp, race);
