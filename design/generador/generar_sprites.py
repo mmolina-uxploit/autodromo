@@ -137,6 +137,9 @@ class Malla:
 
 EX = np.array([1.0, 0, 0])
 
+# Radio con que se redondean las esquinas de cada sección transversal, en metros.
+RADIO_SECCION = 0.10
+
 
 def caja(m, c, h, mat, rx=0.0, ejes=None):
     c = np.asarray(c, float)
@@ -243,20 +246,67 @@ def persianas(m, y0, z0, y1, z1, a0, a1, n, mat):
         caja(m, c, ((a0 + (a1 - a0) * t) * .92, 0.012, lng / (n * 2) * .55), mat, ejes=(EX, en, ed))
 
 
+def redondear(pts, r, n=4):
+    """
+    Reemplaza cada esquina interior por un arco tangente a los dos lados.
+
+    La sección transversal es un polígono: piso, umbral, flanco, hombro, cubierta, techo, con
+    esquinas vivas. Esas esquinas son lo que hace que la carrocería se lea cuadrada, y están en
+    la sección, no a lo largo del auto. Los extremos no se tocan: son la costura del espejo.
+    El radio se recorta a la mitad del lado más corto para que dos arcos nunca se pisen.
+    """
+    if r <= 0 or len(pts) < 3:
+        return pts
+    P = [np.asarray(q, float) for q in pts]
+    salida = [tuple(P[0])]
+    for i in range(1, len(P) - 1):
+        a, b, c = P[i - 1], P[i], P[i + 1]
+        va, vc = a - b, c - b
+        la, lc = np.linalg.norm(va), np.linalg.norm(vc)
+        if la < 1e-6 or lc < 1e-6:
+            # Arista de largo cero (dos medidas iguales): no hay esquina que redondear, pero se
+            # emiten los mismos puntos igual para que todas las secciones tengan la misma cantidad.
+            salida.extend([tuple(b)] * (n + 1))
+            continue
+        ua, uc = va / la, vc / lc
+        # Siempre se emiten los mismos puntos por esquina, aunque el arco sea casi nulo: el loft
+        # recorre las secciones por índice y si dos tuvieran distinta cantidad no se puede tejer.
+        d = min(r, la / 2, lc / 2)
+        p0, p1 = b + ua * d, b + uc * d
+        for k in range(n + 1):
+            t = k / n
+            # Bézier cuadrática con el vértice de control: arco tangente a los dos lados.
+            q = (1 - t) ** 2 * p0 + 2 * (1 - t) * t * b + t * t * p1
+            salida.append((float(q[0]), float(q[1])))
+    salida.append(tuple(P[-1]))
+    return salida
+
+
 def perfil(s):
-    return [(0.0, s['ybot']), (s['wb'], s['ybot']), (s['ws'], s['ysill']), (s['ws'], s['ybelt']),
+    base = [(0.0, s['ybot']), (s['wb'], s['ybot']), (s['ws'], s['ysill']), (s['ws'], s['ybelt']),
             (s['wdeck'], s['ydeck']), (s['wg'], s['ydeck']), (s['wr'], s['yr']), (0.0, s['yr'])]
+    return redondear(base, s.get('radio') if s.get('radio') is not None else RADIO_SECCION)
 
 
 def carroceria(secciones, mat_k5, mat_k6):
     """Loft facetado entre secciones transversales; simétrico en x."""
     der, cen = Malla(), Malla()
     P = [[np.array([x, y, s['z']]) for (x, y) in perfil(s)] for s in secciones]
-    base = ['trim', 'trim', 'pintura', 'pintura', 'pintura']
+    # El perfil redondeado tiene más puntos que el polígono original, así que el material de cada
+    # banda se resuelve por posición relativa: las dos primeras son bajos, las del medio pintura,
+    # y las dos últimas, vidrio o pintura según el tramo.
+    bandas = len(P[0]) - 1
+    def material(k, i):
+        t = k / max(1, bandas - 1)
+        if t < 0.16:
+            return 'trim'
+        if t < 0.70:
+            return 'pintura'
+        return mat_k5[i] if t < 0.86 else mat_k6[i]
     for i in range(len(secciones) - 1):
         A, B = P[i], P[i + 1]
-        for k in range(7):
-            mat = base[k] if k < 5 else (mat_k5[i] if k == 5 else mat_k6[i])
+        for k in range(bandas):
+            mat = material(k, i)
             der.poli([A[k], A[k + 1], B[k + 1], B[k]], mat)
     F = np.array([-1.0, 1, 1])
     for idx in (0, -1):
@@ -265,9 +315,9 @@ def carroceria(secciones, mat_k5, mat_k6):
     return cen.sumar(der).sumar(der.espejo())
 
 
-def sec(z, wb, ws, ybot, ysill, ybelt, wdeck, ydeck, wg, wr, yr):
+def sec(z, wb, ws, ybot, ysill, ybelt, wdeck, ydeck, wg, wr, yr, radio=None):
     return dict(z=z, wb=wb, ws=ws, ybot=ybot, ysill=ysill, ybelt=ybelt,
-                wdeck=wdeck, ydeck=ydeck, wg=wg, wr=wr, yr=yr)
+                wdeck=wdeck, ydeck=ydeck, wg=wg, wr=wr, yr=yr, radio=radio)
 
 
 # ───────────────────────── modelos ─────────────────────────
@@ -494,6 +544,30 @@ def proyectar(P, cam, esc):
     return foc * xv / zv, -foc * yv / zv, zv
 
 
+def normales_de_vertice(T, n):
+    """
+    Normal por vértice: promedio de las caras que lo comparten.
+
+    Es lo que convierte una superficie facetada en una superficie continua. Las aristas vivas
+    de diseño se conservan: si el promedio se aleja demasiado de la cara, ese vértice vuelve a
+    usar la normal de su propia cara, así un canto marcado sigue siendo un canto y no se derrite.
+    """
+    cos_limite = math.cos(math.radians(SPR.get('angulo_suavizado_grados', 0) or 0))
+    if cos_limite >= 1:
+        return np.broadcast_to(n[:, None, :], T.shape).copy()
+    v = np.round(T.reshape(-1, 3), 4)
+    _, inverso = np.unique(v, axis=0, return_inverse=True)
+    inverso = inverso.reshape(-1, 3)
+    suma = np.zeros((inverso.max() + 1, 3))
+    np.add.at(suma, inverso.reshape(-1), np.repeat(n, 3, axis=0))
+    largo = np.linalg.norm(suma, axis=1, keepdims=True)
+    suma = suma / np.where(largo < 1e-9, 1, largo)
+    vn = suma[inverso]
+    duro = (vn * n[:, None, :]).sum(-1) < cos_limite
+    vn[duro] = np.broadcast_to(n[:, None, :], T.shape)[duro]
+    return vn
+
+
 def rasterizar(T, M, cam, esc, ancho, alto, ox, oy):
     sx, sy, z = proyectar(T, cam, esc)
     sx, sy = sx + ox, sy + oy
@@ -501,6 +575,7 @@ def rasterizar(T, M, cam, esc, ancho, alto, ox, oy):
     n /= np.linalg.norm(n, axis=1, keepdims=True)
     vista = np.broadcast_to(cam['f'], n.shape) if cam['orto'] else T.mean(1) - cam['ojo']
     n[(n * vista).sum(1) > 0] *= -1
+    vn = normales_de_vertice(T, n)
     prof = np.full((alto, ancho), np.inf, np.float32)
     nor = np.zeros((alto, ancho, 3), np.float32)
     mat = np.full((alto, ancho), -1, np.int16)
@@ -533,13 +608,18 @@ def rasterizar(T, M, cam, esc, ancho, alto, ox, oy):
                 continue
             sub[upd] = zz[upd]
             mat[mny:mxy + 1, mnx:mxx + 1][upd] = M[i]
-            nor[mny:mxy + 1, mnx:mxx + 1][upd] = n[i]
             if persp:
                 weights = [w0 * zz / z0, w1 * zz / z1, w2 * zz / z2]
             else:
                 weights = [w0, w1, w2]
             pp = sum(weights[j][..., None] * T[i, j] for j in range(3))
             pos[mny:mxy + 1, mnx:mxx + 1][upd] = pp[upd]
+            # La normal se interpola entre los tres vértices, igual que la posición. Usando la
+            # normal de la cara, cada triángulo queda de un color liso y la carrocería se lee
+            # facetada por más redonda que sea la malla.
+            nn = sum(weights[j][..., None] * vn[i, j] for j in range(3))
+            largo = np.linalg.norm(nn, axis=-1, keepdims=True)
+            nor[mny:mxy + 1, mnx:mxx + 1][upd] = (nn / np.where(largo < 1e-9, 1, largo))[upd]
     return prof, nor, mat, pos
 
 
@@ -583,14 +663,40 @@ def reducir(a, f):
     return a.reshape(H // f, f, W // f, f, *a.shape[2:]).mean(axis=(1, 3))
 
 
+def rampa(tabla, mat, nl):
+    """
+    Color de cada píxel según cuánta luz recibe.
+
+    Con suavidad 0 elige uno de los tres tonos con un corte duro: es la celda plana de siempre.
+    Con 1 recorre la rampa luz→base→sombra de forma continua, que es lo que convierte una celda
+    en una ilustración: la luz cruza la chapa sin escalones. Los tres tonos de diseño siguen
+    siendo los mismos y siguen siendo los extremos de la rampa; lo que cambia es si hay escalón
+    entre ellos o no.
+    """
+    idx = np.clip(mat, 0, None)
+    u_luz, u_medio = RND['umbral_luz'], RND['umbral_medio']
+    duro = tabla[idx, np.where(nl > u_luz, 0, np.where(nl > u_medio, 1, 2))]
+    suavidad = RND.get('suavidad_rampa', 0)
+    if suavidad <= 0:
+        return duro
+    # Posición continua en la rampa: 0 es luz, 1 el tono base, 2 la sombra. Los umbrales de
+    # diseño son los puntos de anclaje, así que con suavidad 0 y 1 la imagen coincide en ellos.
+    bajo = u_medio - (u_luz - u_medio)
+    t = np.interp(nl, [bajo, u_medio, u_luz], [2.0, 1.0, 0.0])
+    i0 = np.floor(t).astype(int)
+    i1 = np.minimum(i0 + 1, 2)
+    f = (t - i0)[..., None]
+    suave = tabla[idx, i0] * (1 - f) + tabla[idx, i1] * f
+    return duro * (1 - suavidad) + suave * suavidad
+
+
 def pintar(buf, trazos, tabla, sombra=None, freno=False):
     """Buffer geométrico → RGBA final (ya reducido)."""
     prof, nor, mat, pos = buf
     lineas, filo = trazos
     fg = mat >= 0
     nl, nr = nor @ L_CLAVE, nor @ L_REBOTE
-    tono = np.where(nl > RND['umbral_luz'], 0, np.where(nl > RND['umbral_medio'], 1, 2))
-    rgb = tabla[np.clip(mat, 0, None), tono]
+    rgb = rampa(tabla, mat, nl)
     # Reflejos por superficie en coordenadas de escena: estables entre giros.
     # Bandas duras de cielo y asfalto, sin ruido aleatorio por cuadro.
     x, y, z = pos[..., 0], pos[..., 1], pos[..., 2]

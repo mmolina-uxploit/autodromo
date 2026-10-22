@@ -585,7 +585,8 @@
       "led": "#deeff7",
       "halo_trasera": "#f43250",
       "halo_led": "#aacbdf"
-    }
+    },
+    "suavidad_rampa": 0.85
   },
   "contrato_sprites": {
     "principio": "Una geometría por modelo. Materiales y reflejos coherentes entre vistas. Atlas original fijado para sustitución compatible.",
@@ -657,6 +658,7 @@
     },
     "puntos": "por modelo, inclinación y giro: contacto de cada rueda, pivote de la carrocería, toberas traseras y bajas, escapes; en píxeles del cuadro lógico",
     "recorte": "cada capa se recorta a su contenido; ox/oy ubican el recorte dentro del cuadro lógico",
-    "ancho_hoja_max": 4096
+    "ancho_hoja_max": 4096,
+    "angulo_suavizado_grados": 48
   }
 }
