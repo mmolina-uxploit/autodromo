@@ -1,2 +1,4 @@
 .venv/
 .DS_Store
+# Árboles de trabajo temporales de los agentes: son copias del repo, no fuente.
+.claude/worktrees/
