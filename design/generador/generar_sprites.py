@@ -244,11 +244,21 @@ def persianas(m, y0, z0, y1, z1, a0, a1, n, mat):
 
 
 def perfil(s):
-    return [(0.0, s['ybot']), (s['wb'], s['ybot']), (s['ws'], s['ysill']), (s['ws'], s['ybelt']),
+    """
+    Media sección, del piso al centro del techo.
+
+    El punto de cadera entre el umbral y el cinturón es lo que permite que el flanco sea curvo:
+    sin él, `ws` se repite a las dos alturas y el costado sube recto, que es exactamente lo que
+    hace que un auto se lea cuadrado. Sin declararlo, la cadera cae sobre la recta y la forma
+    queda idéntica a la de antes.
+    """
+    whip = s.get('whip') or s['ws']
+    yhip = s.get('yhip') or (s['ysill'] + s['ybelt']) / 2
+    return [(0.0, s['ybot']), (s['wb'], s['ybot']), (s['ws'], s['ysill']), (whip, yhip), (s['ws'], s['ybelt']),
             (s['wdeck'], s['ydeck']), (s['wg'], s['ydeck']), (s['wr'], s['yr']), (0.0, s['yr'])]
 
 
-CLAVES_SEC = ('wb', 'ws', 'ybot', 'ysill', 'ybelt', 'wdeck', 'ydeck', 'wg', 'wr', 'yr')
+CLAVES_SEC = ('wb', 'ws', 'ybot', 'ysill', 'ybelt', 'wdeck', 'ydeck', 'wg', 'wr', 'yr', 'whip', 'yhip')
 
 
 def suavizar(secciones, mat_k5, mat_k6, pasos):
@@ -269,9 +279,15 @@ def suavizar(secciones, mat_k5, mat_k6, pasos):
         for j in range(pasos + 1):
             t = j / (pasos + 1)
             t2, t3 = t * t, t * t * t
-            mezcla = lambda k: 0.5 * ((2 * p1[k]) + (-p0[k] + p2[k]) * t
-                                      + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2
-                                      + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t3)
+            def mezcla(k, p0=p0, p1=p1, p2=p2, p3=p3, t=t, t2=t2, t3=t3):
+                # Una sección sin cadera declarada usa la recta; se resuelve antes de interpolar
+                # para que una sección con cadera y otra sin ella se mezclen bien.
+                v = [q[k] if q.get(k) is not None else
+                     (q['ws'] if k == 'whip' else (q['ysill'] + q['ybelt']) / 2) for q in (p0, p1, p2, p3)]
+                p0, p1, p2, p3 = v
+                return 0.5 * ((2 * p1) + (-p0 + p2) * t
+                            + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2
+                            + (-p0 + 3 * p1 - 3 * p2 + p3) * t3)
             salida.append(dict(z=p1['z'] + (p2['z'] - p1['z']) * t, **{k: mezcla(k) for k in CLAVES_SEC}))
             m5.append(mat_k5[i])
             m6.append(mat_k6[i])
@@ -285,11 +301,11 @@ def carroceria(secciones, mat_k5, mat_k6, pasos=None):
                                          SPR.get('pasos_entre_secciones', 0) if pasos is None else pasos)
     der, cen = Malla(), Malla()
     P = [[np.array([x, y, s['z']]) for (x, y) in perfil(s)] for s in secciones]
-    base = ['trim', 'trim', 'pintura', 'pintura', 'pintura']
+    base = ['trim', 'trim', 'pintura', 'pintura', 'pintura', 'pintura']
     for i in range(len(secciones) - 1):
         A, B = P[i], P[i + 1]
-        for k in range(7):
-            mat = base[k] if k < 5 else (mat_k5[i] if k == 5 else mat_k6[i])
+        for k in range(8):
+            mat = base[k] if k < 6 else (mat_k5[i] if k == 6 else mat_k6[i])
             der.poli([A[k], A[k + 1], B[k + 1], B[k]], mat)
     F = np.array([-1.0, 1, 1])
     for idx in (0, -1):
@@ -298,54 +314,62 @@ def carroceria(secciones, mat_k5, mat_k6, pasos=None):
     return cen.sumar(der).sumar(der.espejo())
 
 
-def sec(z, wb, ws, ybot, ysill, ybelt, wdeck, ydeck, wg, wr, yr):
+def sec(z, wb, ws, ybot, ysill, ybelt, wdeck, ydeck, wg, wr, yr, whip=None, yhip=None):
     return dict(z=z, wb=wb, ws=ws, ybot=ybot, ysill=ysill, ybelt=ybelt,
-                wdeck=wdeck, ydeck=ydeck, wg=wg, wr=wr, yr=yr)
+                wdeck=wdeck, ydeck=ydeck, wg=wg, wr=wr, yr=yr, whip=whip, yhip=yhip)
 
 
 # ───────────────────────── modelos ─────────────────────────
 def modelo_cuna():
-    S = [sec(-2.10, .80, .96, .16, .30, .70, .88, .86, .78, .78, .86),
-         sec(-1.40, .82, .98, .15, .30, .70, .90, .88, .72, .72, .88),
-         sec(-0.60, .82, .98, .15, .30, .66, .88, .80, .72, .54, 1.08),
-         sec(0.20, .82, .98, .15, .29, .62, .86, .74, .70, .52, 1.06),
-         sec(1.10, .82, .97, .15, .28, .56, .84, .66, .68, .68, .66),
-         sec(2.15, .76, .90, .13, .22, .38, .80, .44, .60, .60, .44)]
-    m = carroceria(S, ['pintura', 'pintura', 'vidrio', 'vidrio', 'pintura'],
-                   ['pintura', 'vidrio', 'pintura', 'vidrio', 'pintura'])
-    der, cen, rd, ws = Malla(), Malla(), Malla(), .98
+    # Prototipo de motor central: caderas que se ensanchan sobre los dos ejes, cintura marcada
+    # entre ellas y techo que baja en una curva larga hasta la cola. La cadera (whip) es lo que
+    # saca el flanco de la vertical; sin ella el costado sube recto y el auto se lee cuadrado.
+    S = [sec(-2.15, .66, .82, .17, .28, .58, .76, .68, .70, .70, .68, whip=.88, yhip=.44),
+         sec(-1.70, .74, .90, .16, .28, .62, .86, .74, .74, .74, .74, whip=.98, yhip=.46),
+         sec(-1.30, .78, .93, .15, .28, .64, .89, .78, .72, .68, .82, whip=1.02, yhip=.47),
+         sec(-0.75, .78, .91, .15, .28, .62, .86, .76, .68, .50, 1.04, whip=.97, yhip=.46),
+         sec(-0.10, .78, .88, .15, .27, .58, .84, .72, .66, .48, 1.02, whip=.92, yhip=.43),
+         sec(0.55, .78, .89, .15, .26, .54, .83, .66, .66, .64, .68, whip=.95, yhip=.41),
+         sec(1.32, .76, .91, .14, .24, .48, .82, .56, .64, .64, .56, whip=1.00, yhip=.37),
+         sec(2.15, .62, .76, .13, .19, .32, .70, .38, .54, .54, .38, whip=.81, yhip=.26)]
+    vidrio = ['pintura', 'pintura', 'vidrio', 'vidrio', 'vidrio', 'pintura', 'pintura']
+    m = carroceria(S, vidrio, vidrio)
+    # `flanco` es el ancho del costado a la altura de la cintura, donde se apoyan los detalles;
+    # `xo` es la cara exterior de la rueda. La rueda tiene que sobresalir de la cadera, si no el
+    # guardabarros se la come y el auto pierde la pisada ancha.
+    der, cen, rd, flanco = Malla(), Malla(), Malla(), .89
+    xo = 1.08
     contactos = []
     for cz, r, rl, w in ((-1.30, .35, .25, .36), (1.32, .32, .23, .30)):
-        xo = ws + .10
         rueda(rd, xo - w, xo, cz, r, rl, rayos=5)
         contactos.append((xo - w / 2, 0, cz))
-        arco(der, cz, r, r + .035, r + .13, ws - .04, xo + .03, 'pintura')
-    caja(der, (ws + .035, .19, .02), (.035, .045, .76), 'trim')
-    caja(der, (ws + .004, .345, .02), (.004, .014, .78), 'acento')
-    der.poli([(ws + .006, .40, -.74), (ws + .006, .40, -.24), (ws + .006, .62, -.14), (ws + .006, .62, -.64)], 'trim')
-    for y in (.47, .55):
-        caja(der, (ws + .012, y, -.44), (.006, .008, .24), 'pintura')
-    caja(der, (.86, .79, .98), (.07, .035, .05), 'acento')
-    caja(der, (.79, .76, .98), (.04, .01, .012), 'trim')
-    zr = -2.10
+        arco(der, cz, r, r + .035, r + .14, flanco - .02, xo + .02, 'pintura')
+    caja(der, (flanco + .030, .19, .02), (.030, .042, .72), 'trim')
+    caja(der, (flanco + .004, .315, .02), (.004, .013, .74), 'acento')
+    der.poli([(flanco + .006, .36, -.70), (flanco + .006, .36, -.24), (flanco + .006, .56, -.14), (flanco + .006, .56, -.60)], 'trim')
+    for y in (.42, .50):
+        caja(der, (flanco + .012, y, -.42), (.006, .008, .22), 'pintura')
+    caja(der, (.82, .74, .96), (.07, .033, .05), 'acento')
+    caja(der, (.76, .71, .96), (.04, .01, .012), 'trim')
+    zr = -2.15
     cen.poli([(-.44, .30, zr - .004), (.44, .30, zr - .004), (.44, .64, zr - .004), (-.44, .64, zr - .004)], 'motor')
     for y in (.40, .48, .56):
         caja(cen, (0, y, zr - .02), (.40, .012, .015), 'trim')
     caja(cen, (0, .45, zr - .045), (.17, .04, .008), 'patente')
     for x in (-.26, -.12, .12, .26):
         cilindro(cen, (x, .25, zr + .02), (x, .25, zr - .14), .045, 10, 'cromo', tapa_b='trim')
-    for x in (.58, .80):
-        luz_redonda(der, x, .56, zr, .085)
-    for x in (-.62, .62):
-        caja(cen, (x, .96, -1.92), (.018, .10, .07), 'trim')
-    caja(cen, (0, 1.075, -1.95), (.99, .022, .21), 'pintura', rx=.12)
-    for x in (-1.0, 1.0):
-        caja(cen, (x, 1.06, -1.96), (.012, .09, .26), 'acento')
+    for x in (.50, .72):
+        luz_redonda(der, x, .54, zr, .090)
+    for x in (-.58, .58):
+        caja(cen, (x, .83, -1.92), (.018, .10, .07), 'trim')
+    caja(cen, (0, .945, -1.95), (.92, .022, .20), 'pintura', rx=.12)
+    for x in (-.93, .93):
+        caja(cen, (x, .93, -1.96), (.012, .085, .24), 'acento')
     zf = 2.15
-    for x in (-.60, .60):
-        caja(cen, (x, .345, zf + .006), (.20, .014, .006), 'led')
+    for x in (-.52, .52):
+        caja(cen, (x, .325, zf + .006), (.18, .014, .006), 'led')
     cen.poli([(-.48, .20, zf + .004), (.48, .20, zf + .004), (.48, .28, zf + .004), (-.48, .28, zf + .004)], 'motor')
-    caja(cen, (0, .10, zf - .05), (.94, .022, .20), 'trim')
+    caja(cen, (0, .10, zf - .05), (.80, .022, .20), 'trim')
     traseras = toberas(cen, zr, (-.62, .62), .17)
     m.sumar(cen).sumar(der).sumar(der.espejo())
     return m, rd.sumar(rd.espejo()), meta_puntos(contactos, traseras, [(x, .25, zr - .14) for x in (-.26, -.12, .12, .26)],
