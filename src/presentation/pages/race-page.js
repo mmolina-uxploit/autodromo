@@ -18,7 +18,8 @@ import { LiveRegion } from '../atoms/live-region.js';
 import { createDialogStack } from '../dialog-stack.js';
 
 const RACING = [RaceStatus.RUNNING, RaceStatus.COUNTDOWN];
-const RESULTS_DELAY_MS = 1600;
+// Lo justo para que se lea el aviso de bandera a cuadros antes de tapar la pantalla.
+const RESULTS_DELAY_MS = 900;
 const FOCUSABLE = 'button:not([hidden]):not([disabled]), input:not([disabled]), [role="switch"]';
 
 /**

@@ -29,7 +29,10 @@ const DEFAULT_RULES = {
   gridFirstGap: 10,
   gridRowGap: 9,
   gridColumnOffset: 3,
-  finishGraceSeconds: 25,
+  // Cuánto espera la carrera a los rivales después de que el jugador cruza la meta. Medido con
+  // 25 s: la gracia se consumía entera en la enorme mayoría de las carreras (siempre, en Fácil),
+  // así que la espera no servía para ver llegar a nadie, solo para esperar.
+  finishGraceSeconds: 7,
   maxRivals: 7
 };
 

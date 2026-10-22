@@ -5,6 +5,9 @@ import {
 } from '../../src/domain/race.js';
 import { createControls } from '../../src/domain/controls.js';
 import { smallWorld, testSpec } from '../helpers.js';
+import { createRules } from '../../src/config/rules.js';
+
+const DEFAULTS = createRules();
 
 const world = smallWorld({ countdownSeconds: 3, finishGraceSeconds: 5 });
 const { track, rules } = world;
@@ -143,4 +146,33 @@ test('interpolar dibuja cada auto entre su paso anterior y el actual', async () 
   assert.equal(interpolateRace(next, previous, 1, track), next);
   const teleported = previous.map(c => ({ ...c, s: track.wrap(c.s + 60) }));
   assert.equal(interpolateRace(next, teleported, 0.5, track).cars[0].s, next.cars[0].s, 'no interpola un auto que reapareció lejos');
+});
+
+test('la espera tras la bandera a cuadros es corta y acotada por la gracia', () => {
+  // Con 25 s la gracia se consumía entera en la enorme mayoría de las carreras, así que entre
+  // cruzar la meta y ver los resultados pasaban más de veinticinco segundos mirando un auto que
+  // ya manejaba la IA. Esta prueba fija el tope por defecto y que el plazo se respete.
+  assert.ok(DEFAULTS.finishGraceSeconds <= 10,
+    `la gracia tras llegar no debería pasar de 10 s, es ${DEFAULTS.finishGraceSeconds}`);
+
+  const breve = smallWorld({ countdownSeconds: 1, finishGraceSeconds: 3 });
+  const carrera = createRace({ track: breve.track, rules: breve.rules, entries: entries(2), laps: 1 });
+  const cerca = withPlayer(
+    { ...carrera, status: RaceStatus.RUNNING, clock: 10 },
+    { s: breve.track.length - 1, progress: breve.track.length - 1, u: 30 }
+  );
+  let actual = cerca;
+  let cruzo = null;
+  let termino = null;
+  for (let i = 0; i < 60 * 20 && termino === null; i++) {
+    const { race: siguiente, events } = stepRace(actual, gas, 1 / 60, breve);
+    for (const e of events) {
+      if (e.type === RaceEvent.FINISHED && e.player && cruzo === null) cruzo = siguiente.clock;
+      if (e.type === RaceEvent.RACE_OVER) termino = siguiente.clock;
+    }
+    actual = siguiente;
+  }
+  assert.ok(cruzo !== null, 'el jugador cruza la meta');
+  assert.ok(termino !== null, 'la carrera termina aunque el rival no llegue');
+  assert.ok(termino - cruzo <= 3.1, `la espera fue ${(termino - cruzo).toFixed(2)} s, más que la gracia`);
 });

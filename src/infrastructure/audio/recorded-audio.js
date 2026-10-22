@@ -241,11 +241,20 @@ export function createRecordedLayers(ctx, destination, bank) {
   }
 
   return {
-    update(race, focus, { demo, trackLength, zone, dt = 1 / 60 }) {
+    update(race, focus, { demo, trackLength, zone, dt = 1 / 60, over = false }) {
       if (demo) {
         silenceLoops();
         playerEngines.get(currentModel)?.silence();
         updateRivals(race, focus, trackLength, true);
+        return;
+      }
+      if (over) {
+        // El jugador ya cruzó la meta: su auto lo lleva la IA y, cuando la carrera termina, el
+        // estado queda congelado, así que su motor sonaría a régimen fijo para siempre. Se apaga
+        // su voz y sus bucles; los rivales siguen sonando, que es lo que la espera quiere mostrar.
+        silenceLoops();
+        playerEngines.get(currentModel)?.silence();
+        updateRivals(race, focus, trackLength, false);
         return;
       }
       updatePlayer(focus, race.specs[focus.specId], zone, dt);

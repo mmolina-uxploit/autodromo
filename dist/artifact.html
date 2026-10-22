@@ -676,7 +676,10 @@ const DEFAULT_RULES = {
   gridFirstGap: 10,
   gridRowGap: 9,
   gridColumnOffset: 3,
-  finishGraceSeconds: 25,
+  // Cuánto espera la carrera a los rivales después de que el jugador cruza la meta. Medido con
+  // 25 s: la gracia se consumía entera en la enorme mayoría de las carreras (siempre, en Fácil),
+  // así que la espera no servía para ver llegar a nadie, solo para esperar.
+  finishGraceSeconds: 7,
   maxRivals: 7
 };
 
@@ -7172,11 +7175,20 @@ function createRecordedLayers(ctx, destination, bank) {
   }
 
   return {
-    update(race, focus, { demo, trackLength, zone, dt = 1 / 60 }) {
+    update(race, focus, { demo, trackLength, zone, dt = 1 / 60, over = false }) {
       if (demo) {
         silenceLoops();
         playerEngines.get(currentModel)?.silence();
         updateRivals(race, focus, trackLength, true);
+        return;
+      }
+      if (over) {
+        // El jugador ya cruzó la meta: su auto lo lleva la IA y, cuando la carrera termina, el
+        // estado queda congelado, así que su motor sonaría a régimen fijo para siempre. Se apaga
+        // su voz y sus bucles; los rivales siguen sonando, que es lo que la espera quiere mostrar.
+        silenceLoops();
+        playerEngines.get(currentModel)?.silence();
+        updateRivals(race, focus, trackLength, false);
         return;
       }
       updatePlayer(focus, race.specs[focus.specId], zone, dt);
@@ -7577,16 +7589,20 @@ function createAudio({ createContext = () => {
     update(race, events, dt, { demo = false, trackLength = Infinity, zone = null } = {}) {
       if (!ctx || !nodes || ctx.state !== 'running') return;
       const focus = race.cars.find(c => c.id === race.playerId) ?? race.cars[0];
-      music.setIntensity(demo ? 0 : race.status === 'running' ? 1 : 0.5);
+      // El indicador viene del dominio (race.js marca el auto al cruzar la meta) y sobrevive a la
+      // interpolación. Mirar el estado de la carrera no alcanza: entre la bandera a cuadros y el
+      // final pasan varios segundos en los que el auto ya no es del jugador.
+      const over = Boolean(focus.finished);
+      music.setIntensity(demo || over ? 0.5 : race.status === 'running' ? 1 : 0.5);
       music.tick();
       const spec = race.specs[focus.specId];
       ramp(nodes.wet.gain, REVERB[zone] ?? 0.1, 0.5);
       if (recorded) {
-        recorded.update(race, focus, { demo, trackLength, zone, dt });
+        recorded.update(race, focus, { demo, trackLength, zone, dt, over });
         silencePlayer();
         for (const voice of nodes.rivals) ramp(voice.g.gain, 0, 0.1);
       } else {
-        if (demo) silencePlayer();
+        if (demo || over) silencePlayer();
         else updatePlayer(focus, spec, focus.model);
         updateRivals(race, focus, demo, trackLength);
       }
@@ -8765,7 +8781,8 @@ const { LiveRegion } = __m["src/presentation/atoms/live-region.js"];
 const { createDialogStack } = __m["src/presentation/dialog-stack.js"];
 
 const RACING = [RaceStatus.RUNNING, RaceStatus.COUNTDOWN];
-const RESULTS_DELAY_MS = 1600;
+// Lo justo para que se lea el aviso de bandera a cuadros antes de tapar la pantalla.
+const RESULTS_DELAY_MS = 900;
 const FOCUSABLE = 'button:not([hidden]):not([disabled]), input:not([disabled]), [role="switch"]';
 
 /**

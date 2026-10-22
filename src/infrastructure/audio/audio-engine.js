@@ -340,16 +340,20 @@ export function createAudio({ createContext = () => {
     update(race, events, dt, { demo = false, trackLength = Infinity, zone = null } = {}) {
       if (!ctx || !nodes || ctx.state !== 'running') return;
       const focus = race.cars.find(c => c.id === race.playerId) ?? race.cars[0];
-      music.setIntensity(demo ? 0 : race.status === 'running' ? 1 : 0.5);
+      // El indicador viene del dominio (race.js marca el auto al cruzar la meta) y sobrevive a la
+      // interpolación. Mirar el estado de la carrera no alcanza: entre la bandera a cuadros y el
+      // final pasan varios segundos en los que el auto ya no es del jugador.
+      const over = Boolean(focus.finished);
+      music.setIntensity(demo || over ? 0.5 : race.status === 'running' ? 1 : 0.5);
       music.tick();
       const spec = race.specs[focus.specId];
       ramp(nodes.wet.gain, REVERB[zone] ?? 0.1, 0.5);
       if (recorded) {
-        recorded.update(race, focus, { demo, trackLength, zone, dt });
+        recorded.update(race, focus, { demo, trackLength, zone, dt, over });
         silencePlayer();
         for (const voice of nodes.rivals) ramp(voice.g.gain, 0, 0.1);
       } else {
-        if (demo) silencePlayer();
+        if (demo || over) silencePlayer();
         else updatePlayer(focus, spec, focus.model);
         updateRivals(race, focus, demo, trackLength);
       }
