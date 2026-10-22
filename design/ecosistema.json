@@ -627,9 +627,9 @@
       ]
     },
     "trazo_px_supermuestreo": {
-      "silueta": 2,
-      "contorno": 1,
-      "pliegue": 0
+      "silueta": 6,
+      "contorno": 2,
+      "pliegue": 2
     },
     "umbral_pliegue_grados": 22,
     "umbral_profundidad_m": 0.12,
@@ -657,6 +657,7 @@
     },
     "puntos": "por modelo, inclinación y giro: contacto de cada rueda, pivote de la carrocería, toberas traseras y bajas, escapes; en píxeles del cuadro lógico",
     "recorte": "cada capa se recorta a su contenido; ox/oy ubican el recorte dentro del cuadro lógico",
-    "ancho_hoja_max": 4096
+    "ancho_hoja_max": 4096,
+    "pasos_entre_secciones": 3
   }
 }

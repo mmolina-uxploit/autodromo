@@ -248,8 +248,41 @@ def perfil(s):
             (s['wdeck'], s['ydeck']), (s['wg'], s['ydeck']), (s['wr'], s['yr']), (0.0, s['yr'])]
 
 
-def carroceria(secciones, mat_k5, mat_k6):
-    """Loft facetado entre secciones transversales; simétrico en x."""
+CLAVES_SEC = ('wb', 'ws', 'ybot', 'ysill', 'ybelt', 'wdeck', 'ydeck', 'wg', 'wr', 'yr')
+
+
+def suavizar(secciones, mat_k5, mat_k6, pasos):
+    """
+    Mete `pasos` secciones interpoladas entre cada par, con Catmull-Rom sobre cada medida.
+
+    El loft es facetado: con seis secciones el cuerpo queda en tramos planos largos y el auto se
+    lee cuadrado. Interpolando con una curva que pasa por las secciones originales, la silueta se
+    redondea sin mover una sola medida de diseño: las seis siguen ahí, solo se agrega lo de entre.
+    """
+    if pasos < 1:
+        return secciones, mat_k5, mat_k6
+    n = len(secciones)
+    cerca = lambda i: secciones[min(max(i, 0), n - 1)]
+    salida, m5, m6 = [], [], []
+    for i in range(n - 1):
+        p0, p1, p2, p3 = cerca(i - 1), secciones[i], secciones[i + 1], cerca(i + 2)
+        for j in range(pasos + 1):
+            t = j / (pasos + 1)
+            t2, t3 = t * t, t * t * t
+            mezcla = lambda k: 0.5 * ((2 * p1[k]) + (-p0[k] + p2[k]) * t
+                                      + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2
+                                      + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t3)
+            salida.append(dict(z=p1['z'] + (p2['z'] - p1['z']) * t, **{k: mezcla(k) for k in CLAVES_SEC}))
+            m5.append(mat_k5[i])
+            m6.append(mat_k6[i])
+    salida.append(secciones[-1])
+    return salida, m5, m6
+
+
+def carroceria(secciones, mat_k5, mat_k6, pasos=None):
+    """Loft entre secciones transversales, suavizado por interpolación; simétrico en x."""
+    secciones, mat_k5, mat_k6 = suavizar(secciones, mat_k5, mat_k6,
+                                         SPR.get('pasos_entre_secciones', 0) if pasos is None else pasos)
     der, cen = Malla(), Malla()
     P = [[np.array([x, y, s['z']]) for (x, y) in perfil(s)] for s in secciones]
     base = ['trim', 'trim', 'pintura', 'pintura', 'pintura']
@@ -570,11 +603,22 @@ def engrosar(m, r):
     return ndimage.binary_dilation(m, structure=disco(r)) if r > 0 else m
 
 
+# Margen de la capa de rueda delantera, en píxeles de supermuestreo.
+MARGEN_FRENTE = 2
+
+
 def lineas_de(buf, trazo):
-    """Devuelve (máscara de tinta, máscara de filo de rebote)."""
+    """
+    Devuelve (máscara de tinta, máscara de filo de rebote).
+
+    La tinta se engrosa hacia ADENTRO: se recorta contra la silueta del auto. Engrosándola hacia
+    afuera, un contorno firme se sale del recorte que fija el contrato del atlas y obliga a
+    reempaquetarlo entero; recortada, el mismo grosor entra sin tocar una sola medida del atlas.
+    """
     sil, con, cre = bordes(*buf[:3])
-    tinta = engrosar(sil, trazo['silueta']) | engrosar(con, trazo['contorno']) | engrosar(cre, trazo['pliegue'])
-    filo = engrosar(sil, trazo['silueta'] + RND['ancho_rebote_px_supermuestreo']) & ~tinta
+    dentro = buf[2] >= 0
+    tinta = (engrosar(sil, trazo['silueta']) | engrosar(con, trazo['contorno']) | engrosar(cre, trazo['pliegue'])) & dentro
+    filo = engrosar(sil, trazo['silueta'] + RND['ancho_rebote_px_supermuestreo']) & dentro & ~tinta
     return tinta, filo
 
 
@@ -789,9 +833,12 @@ def generar_sprites(modelos, seleccion=None):
                 lin_b = lineas_de(buf_b, trazo)
                 lin_w = lineas_de(buf_w, trazo)
                 # Rueda por delante de la carrocería: esa parte se vuelve a dibujar encima.
+                # El margen es fijo y NO sigue al grosor del trazo: la tinta ya se recorta contra
+                # la silueta, así que alcanza con cubrir la rueda. Atándolo al trazo, engrosar la
+                # tinta empujaba esta capa fuera del recorte que fija el contrato del atlas.
                 adelante = (buf_w[2] >= 0) & ((buf_w[0] < buf_b[0]) | (buf_b[2] < 0))
-                adelante &= (buf_b[2] >= 0) | engrosar(buf_b[2] >= 0, trazo['silueta'] + 2)
-                adelante = engrosar(adelante, trazo['silueta'] + 1)
+                adelante &= (buf_b[2] >= 0) | engrosar(buf_b[2] >= 0, MARGEN_FRENTE + 2)
+                adelante = engrosar(adelante, MARGEN_FRENTE + 1)
                 mascara = np.clip(reducir(adelante.astype(float), SS), 0, 1)
                 som = sombra_contacto(cam, g, ppm * SS, ox, oy, FW * SS, FH * SS, meta['huella'])
                 for clave_p, lista in meta['puntos'].items():
