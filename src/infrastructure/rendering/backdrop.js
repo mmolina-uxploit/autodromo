@@ -459,42 +459,51 @@ function paintRange(g, W, base, height, { lit, shade, haze, hazeAlpha, spurs = 0
   const rnd = seeded(Math.round(W) + Math.round(base));
   const ribs = [[7, 1, rnd() * 6.3], [13, 0.55, rnd() * 6.3], [23, 0.3, rnd() * 6.3]];
   // Cumbre que manda en cada columna: la más alta a menos de un séptimo de pantalla.
-  // Se busca sobre la cresta suavizada: así solo cuentan los picos grandes y el abanico no
-  // salta de un diente a otro del serrucho.
+  // Cumbres: máximos de la cresta suavizada, así solo cuentan los picos grandes y no cada
+  // diente del serrucho.
   const reach = Math.round(W / 7);
   const wide = Math.max(3, Math.round(W * 0.03));
+  const at = x => ((x % (n + 1)) + n + 1) % (n + 1);
   const smooth = new Float32Array(n + 1);
   for (let x = 0; x <= n; x++) {
     let acc = 0;
-    for (let d = -wide; d <= wide; d += 2) acc += hs[((x + d) % (n + 1) + n + 1) % (n + 1)];
+    for (let d = -wide; d <= wide; d += 2) acc += hs[at(x + d)];
     smooth[x] = acc / (wide + 1);
   }
-  const summit = new Int32Array(n + 1);
+  const peaks = [];
   for (let x = 0; x <= n; x++) {
-    let best = x;
-    let score = smooth[x];
-    for (let d = -reach; d <= reach; d += 2) {
-      const xx = ((x + d) % (n + 1) + n + 1) % (n + 1);
-      const sc = smooth[xx] - Math.abs(d) * 0.05;
-      if (sc > score) { best = xx; score = sc; }
-    }
-    summit[x] = best;
+    let top = true;
+    for (let d = -reach; d <= reach && top; d += 2) if (d && smooth[at(x + d)] > smooth[x]) top = false;
+    if (top && smooth[x] > 2 && (!peaks.length || x - peaks[peaks.length - 1] > reach / 2)) peaks.push(x);
   }
+  if (!peaks.length) peaks.push(0);
+  // Cada columna toma las aristas de las dos cumbres que la encierran y las mezcla a lo largo
+  // del valle entre ellas: el abanico de una se apaga mientras crece el de la otra, sin costura.
+  const fan = (x, y, px, h) => {
+    let dx = x - px;
+    if (dx > n / 2) dx -= n + 1; else if (dx < -n / 2) dx += n + 1;
+    const ang = Math.atan2(dx, y - (base - hs[px]) + h * 0.15);
+    let rib = 0;
+    for (const [k, w, ph] of ribs) rib += w * Math.cos(ang * k + ph + Math.sin(dx * 0.02 + ph) * 0.4);
+    return rib;
+  };
   for (let x = 0; x < n; x++) {
     const h = hs[x];
     if (h <= 0.5) continue;
     const ridgeY = base - h;
-    const px = summit[x];
-    let dx = x - px;
-    if (dx > n / 2) dx -= n; else if (dx < -n / 2) dx += n;
-    const py = base - hs[px];
+    let left = peaks[peaks.length - 1] - (n + 1);
+    let right = peaks[0] + (n + 1);
+    for (const p of peaks) {
+      if (p <= x && p > left) left = p;
+      if (p > x && p < right) right = p;
+    }
+    const tt = clamp(((x - left) / (right - left) - 0.3) / 0.4, 0, 1);
+    const blend = tt * tt * (3 - 2 * tt);
     for (let y = Math.max(y0, Math.floor(ridgeY)); y < base; y++) {
       const v = Math.min(1, (base - y) / h);  // 1 en la cresta, 0 al pie
       // Espolones: rayos que bajan desde la cumbre y se abren en abanico, como el agua que
       // fue tallando la ladera.
-      const ang = Math.atan2(dx, y - py + h * 0.15);
-      let rib = 0;
-      for (const [k, w, ph] of ribs) rib += w * Math.cos(ang * k + ph + Math.sin(dx * 0.02 + ph) * 0.4);
+      const rib = fan(x, y, at(left), h) * (1 - blend) + fan(x, y, at(right), h) * blend;
       const face = clamp(slope[x] * 2.2, -1, 1) * (0.35 + 0.65 * v);
       let light = 0.55 + 0.55 * face + spurs * 0.32 * rib * (0.3 + 0.7 * v);
       light = clamp(light, 0, 1);
@@ -523,7 +532,7 @@ function paintRange(g, W, base, height, { lit, shade, haze, hazeAlpha, spurs = 0
       const v = 0.05 + 0.4 * r() ** 1.8;
       const y = base - h * v;
       const s = dots.size * (0.6 + 0.9 * r());
-      g.fillStyle = rgba(mix(dots.color, haze, hazeAlpha * (1 - v) ** 1.6), 0.55);
+      g.fillStyle = rgba(mix(dots.color, haze, hazeAlpha * (1 - v) ** 1.6), 0.3);
       g.beginPath();
       g.ellipse(x, y, s * 2.2, s * 0.8, 0, 0, Math.PI * 2);
       g.fill();
@@ -539,11 +548,12 @@ function crown(g, x, base, r, dark, light) {
     g.arc(x + dx * r, base + dy * r, s * r, 0, Math.PI * 2);
     g.fill();
   }
-  g.fillStyle = light;
-  for (const [dx, dy, s] of [[-0.35, -1.25, 0.45], [0.35, -0.9, 0.35], [-0.75, -0.75, 0.3]]) {
-    g.beginPath();
-    g.arc(x + dx * r, base + dy * r, s * r, 0, Math.PI * 2);
-    g.fill();
+  // Tapas al sol: degradé dentro de cada bollo, sin borde, para que no se lean como burbujas.
+  for (const [dx, dy, s] of [[-0.35, -1.3, 0.55], [0.35, -0.95, 0.42], [-0.75, -0.8, 0.38]]) {
+    const cx = x + dx * r;
+    const cy = base + dy * r;
+    g.fillStyle = radial(g, cx, cy, s * r, [[0, rgba(light, 0.85)], [0.6, rgba(light, 0.35)], [1, rgba(light, 0)]]);
+    g.fillRect(cx - s * r, cy - s * r, s * r * 2, s * r * 2);
   }
 }
 

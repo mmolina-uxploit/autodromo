@@ -72,11 +72,11 @@ export const ZONES = Object.freeze([
   },
   {
     id: 'valle-alto', name: 'Valle Alto', time: 'día',
-    sky: ['#2a74d6', '#6db3ee', '#d4ecf7'], fog: '#cfe5df',
+    sky: ['#2a74d6', '#6db3ee', '#d4ecf7'], fog: '#b9dc9a',
     road: { asphalt: ['#6b717b', '#666c76'], rumble: ['#f4f6fa', '#d9dfe6'], lane: '#f4f6fa', ground: ['#79c24b', '#70b944'] },
     wall: { face: ['#c7cbe0', '#7f93b0'], top: '#efebe4', stripe: '#b6e03a', height: 0.7 },
     gap: { top: '#4f5d7a', bottom: '#1c1f3a', shimmer: '#5fe3f0' },
-    props: ['oak', 'oak', 'house'], lamps: false, poles: true,
+    props: ['oak', 'oak', 'house'], lamps: false, poles: true, signs: 'rural',
     backdrop: 'valley', accent: '#b6e03a', smoke: '#efebe4', dust: '#c7cbe0',
     atmosphere: {
       zenith: '#155bbf', glow: ['#fff4dc', 0.3], haze: ['#d6edf4', 0.32],

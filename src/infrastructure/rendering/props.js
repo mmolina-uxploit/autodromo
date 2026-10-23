@@ -183,9 +183,11 @@ const PROPS = {
     const w = 2.6 * ppm;
     const h = 1.6 * ppm;
     const top = y - 2.4 * ppm;
-    rect(ctx, x - 0.12 * ppm, top + h, 0.24 * ppm, 2.4 * ppm - h, INK);
-    rect(ctx, x - w / 2, top, w, h, INK, ppm * 0.6);
-    ctx.fillStyle = '#e8459a';
+    // En el campo el cartel es de ruta: placa blanca, chevrones de tinta y poste gris.
+    const rural = zone.signs === 'rural';
+    rect(ctx, x - 0.12 * ppm, top + h, 0.24 * ppm, 2.4 * ppm - h, rural ? '#7f93b0' : INK);
+    rect(ctx, x - w / 2, top, w, h, rural ? '#f4f6fa' : INK, ppm * 0.6);
+    ctx.fillStyle = rural ? INK : '#e8459a';
     const dir = turn >= 0 ? 1 : -1;
     for (let i = -1; i <= 1; i++) {
       const cx = x + i * w * 0.28;
@@ -199,7 +201,7 @@ const PROPS = {
       ctx.closePath();
       ctx.fill();
     }
-    if (night) glow(ctx, x, top + h / 2, w * 0.7, '#e8459a', 0.3);
+    if (night && !rural) glow(ctx, x, top + h / 2, w * 0.7, '#e8459a', 0.3);
   },
 
   /** Cartel de distancia a la curva: 300, 200 o 100 m, con una franja magenta por cada cien. */
