@@ -596,13 +596,19 @@
     "px_por_metro": 100,
     "supermuestreo": 3,
     "giros_grados": [
-      -21,
-      -14,
-      -7,
-      0,
-      7,
-      14,
-      21
+      -21.0,
+      -17.5,
+      -14.0,
+      -10.5,
+      -7.0,
+      -3.5,
+      0.0,
+      3.5,
+      7.0,
+      10.5,
+      14.0,
+      17.5,
+      21.0
     ],
     "convencion_giro": "positivo = la trompa gira a la derecha; se ve el lateral derecho",
     "inclinaciones_grados": {

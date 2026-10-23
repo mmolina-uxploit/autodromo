@@ -994,7 +994,7 @@ def generar_sprites(modelos, seleccion=None):
                         full.alpha_composite(cuerpo_est)
                         full.alpha_composite(frente)
                         capturas[f"{nombre}_{lib['id']}_{inc}_{est}_g{gi}"] = full
-            print(f'  {nombre}: giro {g:+d}° listo', flush=True)
+            print(f'  {nombre}: giro {g:+.1f}° listo', flush=True)
         if contrato is None:
             hoja, cuadros = empaquetar(items, SPR.get('ancho_hoja_max', 4096))
         else:
