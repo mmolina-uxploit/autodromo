@@ -801,7 +801,7 @@ const ZONES = Object.freeze([
     backdrop: 'valley', accent: '#b6e03a', smoke: '#efebe4', dust: '#c7cbe0',
     atmosphere: {
       zenith: '#155bbf', glow: ['#fff4dc', 0.3], haze: ['#d6edf4', 0.32],
-      cloud: { light: '#ffffff', shade: '#a8bfdd', rim: '#ffffff', lit: 'above', count: 6, tall: true },
+      cloud: { light: '#ffffff', shade: '#a8bfdd', rim: '#ffffff', lit: 'above', count: 10, tall: true },
       sheen: 0.14, wet: 0
     }
   }
@@ -3928,9 +3928,11 @@ function paintTallCloud(cloud, puffs, width, height, base) {
   // Tapa al sol: un toque cálido arriba a la izquierda de la torre.
   g.fillStyle = linear(g, 0, 0, width * 0.6, height * 0.6, [[0, rgba('#fff4dc', 0.5)], [1, rgba('#fff4dc', 0)]]);
   g.fillRect(0, 0, width, height);
-  // La base corta derecho, como se ven los cúmulos sobre el valle.
+  // La base es chata pero no cortada: se deshace en pocos píxeles.
   g.globalCompositeOperation = 'destination-out';
-  g.fillRect(0, base, width, height - base);
+  const soft = Math.max(2, height * 0.04);
+  g.fillStyle = linear(g, 0, base - soft, 0, base + 1, [[0, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,1)']]);
+  g.fillRect(0, base - soft, width, height - base + soft);
   g.globalCompositeOperation = 'source-over';
   gouache(c, Math.round(width * 7 + height), 0.7);
   return c;
@@ -3938,7 +3940,9 @@ function paintTallCloud(cloud, puffs, width, height, base) {
 
 function paintCloud(cloud, seed, width) {
   const rnd = seeded(seed);
-  const height = width * (cloud.tall ? 0.82 : 0.42);
+  // `tower` va de 0 (cúmulo chato) a 1 (torre de mediodía).
+  const tower = cloud.tower ?? 1;
+  const height = width * (cloud.tall ? 0.36 + 0.5 * tower : 0.42);
   const c = offscreen(width, height);
   const g = c.getContext('2d');
   const base = height * (cloud.tall ? 0.9 : 0.8);
@@ -3948,23 +3952,30 @@ function paintCloud(cloud, seed, width) {
     // pocos lóbulos grandes apilados que se angostan y se corren al subir, y bollitos chicos
     // asomando por el borde de arriba de cada lóbulo. La jerarquía de tamaños es lo que evita
     // que se vea como una grilla de bollos iguales.
-    const n = 8 + Math.floor(rnd() * 5);
-    for (let i = 0; i < n; i++) {
-      const t = (i + 0.5) / n;
-      const r = width * (0.035 + 0.06 * Math.sin(Math.PI * t) * (0.45 + 1.1 * rnd() ** 1.5));
-      puffs.push({ x: width * (0.06 + 0.88 * t + (rnd() - 0.5) * 0.04), y: base - r * (0.45 + 0.35 * rnd()), r });
-    }
     const lean = (rnd() - 0.5) * 0.22;
-    const count = 4 + Math.floor(rnd() * 3);
+    const count = 2 + Math.floor(tower * 4 + rnd() * 1.5);
     const lobes = [];
     for (let j = 0; j < count; j++) {
       const u = j / (count - 1);
-      const r = width * (0.21 - 0.11 * u) * (0.75 + 0.5 * rnd());
-      const x = width * (0.5 + lean * u + (rnd() - 0.5) * 0.34 * (1 - u * 0.6));
-      const y = base - height * 0.7 * u + r * 0.25;
+      // Un cúmulo chato reparte los lóbulos a lo ancho; una torre los apila.
+      const r = width * (0.21 - 0.11 * u * tower) * (0.75 + 0.5 * rnd()) * (0.75 + 0.25 * tower);
+      const spread = 0.34 + 0.4 * (1 - tower);
+      const x = width * (0.5 + lean * u + (rnd() - 0.5) * spread * (1 - u * 0.6 * tower));
+      const y = base - (height - r) * 0.85 * u + r * 0.25;
       lobes.push({ x: clamp(x, r, width - r), y: Math.max(r, y), r });
     }
     puffs.push(...lobes);
+    // La base va después de los lóbulos y solo a lo ancho que ellos ocupan, con bollos que se
+    // pisan: así no quedan bolitas en fila asomando a los costados.
+    const avg = lobes.reduce((a, l) => a + l.r, 0) / lobes.length;
+    const left = Math.max(avg * 0.6, Math.min(...lobes.map(l => l.x - l.r * 0.75)));
+    const right = Math.min(width - avg * 0.6, Math.max(...lobes.map(l => l.x + l.r * 0.75)));
+    const n = Math.max(3, Math.round((right - left) / (avg * 0.7)));
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.5) / n;
+      const r = avg * (0.5 + 0.3 * Math.sin(Math.PI * t) + 0.2 * rnd());
+      puffs.push({ x: left + (right - left) * t, y: base - r * (0.55 + 0.25 * rnd()), r });
+    }
     for (const lobe of lobes) {
       const m = 4 + Math.floor(rnd() * 5);
       for (let k = 0; k < m; k++) {
@@ -4057,8 +4068,16 @@ function cloudSet(zone, unit, W) {
   const cloud = zone.atmosphere.cloud;
   return cached(sprites, `nubes:${zone.id}:${Math.round(W)}`, () => Array.from({ length: cloud.count }, (_, i) => {
     const depth = (i + 0.5) / cloud.count;
-    const width = W * (cloud.tall ? 0.15 + 0.2 * depth : 0.14 + 0.26 * depth) * (0.8 + 0.4 * ((i * 37) % 10) / 10);
-    return { depth, sprite: paintCloud(cloud, i * 17 + zone.id.length, width), seed: i };
+    const vary = 0.8 + 0.4 * ((i * 37) % 10) / 10;
+    if (!cloud.tall) {
+      const width = W * (0.14 + 0.26 * depth) * vary;
+      return { depth, sprite: paintCloud(cloud, i * 17 + zone.id.length, width), seed: i };
+    }
+    // Cielo de mediodía: muchas nubes lejanas y chicas, pocas cercanas y grandes. Cada una con
+    // su grado de torre: la mayoría son cúmulos chatos y unas pocas crecen hacia arriba.
+    const tower = ((i * 53 + 11) % 10) / 10 > 0.62 ? 0.65 + 0.35 * ((i * 29) % 10) / 10 : 0.1 + 0.3 * ((i * 41) % 10) / 10;
+    const width = W * (0.07 + 0.24 * depth * depth) * vary * (0.85 + 0.3 * (1 - tower));
+    return { depth, sprite: paintCloud({ ...cloud, tower }, i * 17 + zone.id.length, width), seed: i };
   }));
 }
 
@@ -4069,11 +4088,12 @@ function paintClouds(ctx, zone, viewport, offset, clock = 0) {
   for (const { depth, sprite, seed } of cloudSet(zone, unit, W)) {
     const span = W + sprite.width;
     const x = wrap(((seed * 211) % 1000) / 1000 * span - offset * (0.03 + 0.05 * depth) + clock * (2 + 4 * depth), span) - sprite.width;
-    // Los cúmulos altos apoyan la base cerca del horizonte y crecen hacia arriba.
+    // Los cúmulos tienen la base chata a una misma altitud; vista desde abajo, esa base sube en
+    // pantalla cuanto más cerca está la nube. Solo las lejanas tocan el horizonte.
     const y = zone.atmosphere.cloud.tall
-      ? hy * (0.86 - 0.22 * depth) - sprite.height * 0.9
+      ? hy * (0.86 - 0.66 * depth) - sprite.height * 0.9
       : hy * (0.58 - 0.5 * depth) - sprite.height * 0.5;
-    ctx.globalAlpha = zone.atmosphere.cloud.tall ? 0.88 + 0.12 * depth : 0.55 + 0.45 * depth;
+    ctx.globalAlpha = zone.atmosphere.cloud.tall ? 0.7 + 0.3 * depth : 0.55 + 0.45 * depth;
     ctx.drawImage(sprite, x, y);
   }
   ctx.globalAlpha = 1;

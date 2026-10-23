@@ -88,7 +88,7 @@ export const ZONES = Object.freeze([
     backdrop: 'valley', accent: '#b6e03a', smoke: '#efebe4', dust: '#c7cbe0',
     atmosphere: {
       zenith: '#155bbf', glow: ['#fff4dc', 0.3], haze: ['#d6edf4', 0.32],
-      cloud: { light: '#ffffff', shade: '#a8bfdd', rim: '#ffffff', lit: 'above', count: 6, tall: true },
+      cloud: { light: '#ffffff', shade: '#a8bfdd', rim: '#ffffff', lit: 'above', count: 10, tall: true },
       sheen: 0.14, wet: 0
     }
   }

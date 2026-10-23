@@ -446,7 +446,7 @@
           "sombra": "#a8bfdd",
           "borde": "#ffffff",
           "iluminadas": "desde arriba",
-          "cantidad": 6,
+          "cantidad": 10,
           "forma": "torre"
         },
         "brillo_asfalto": 0.14,
