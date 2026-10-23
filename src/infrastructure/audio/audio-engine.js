@@ -19,7 +19,7 @@ const ENGINES = Object.freeze({
 const RIVAL_VOICES = 3;
 
 /** Cuánto eco tiene cada zona: bajo el viaducto rebota todo, junto al mar casi nada. */
-const REVERB = Object.freeze({ 'bajo-autopista': 0.32, 'distrito-torre': 0.2, 'anillo-neon': 0.16, 'costa-rosa': 0.05 });
+const REVERB = Object.freeze({ 'bajo-autopista': 0.32, 'distrito-torre': 0.2, 'anillo-neon': 0.16, 'costa-rosa': 0.05, 'valle-alto': 0.04 });
 
 function softClip(amount) {
   const curve = new Float32Array(1024);

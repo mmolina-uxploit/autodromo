@@ -9,7 +9,7 @@ import { createTireVoice } from './tire-voice.js';
  */
 const RIVAL_VOICES = 3;
 const SOUND_SPEED = 343;
-const SURFACE = Object.freeze({ 'distrito-torre': 'pasto', 'costa-rosa': 'grava', 'bajo-autopista': 'grava', 'anillo-neon': 'grava' });
+const SURFACE = Object.freeze({ 'distrito-torre': 'pasto', 'costa-rosa': 'grava', 'bajo-autopista': 'grava', 'anillo-neon': 'grava', 'valle-alto': 'pasto' });
 
 export function createRecordedLayers(ctx, destination, bank) {
   const m = bank.manifest;

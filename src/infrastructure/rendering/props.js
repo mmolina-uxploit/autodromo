@@ -1,5 +1,6 @@
 import { hashNoise } from '../../domain/math.js';
 import { paintGlow, glowSprite } from './glow.js';
+import { mix } from './backdrop.js';
 
 /**
  * Utilería al costado de la pista, dibujada en pantalla a partir del punto del piso (x, y)
@@ -103,6 +104,31 @@ const PROPS = {
 
   tree(ctx, x, y, ppm) {
     drawSprite(ctx, treeSprite(), x, y, ppm);
+  },
+
+  oak(ctx, x, y, ppm, side, zone, night, seed) {
+    drawSprite(ctx, oakSprite(Math.abs(seed) % 2), x, y, ppm);
+  },
+
+  house(ctx, x, y, ppm, side, zone, night, seed) {
+    drawSprite(ctx, houseSprite(Math.abs(seed) % 3, side), x, y, ppm);
+  },
+
+  pole(ctx, x, y, ppm) {
+    const h = POLE.height * ppm;
+    const w = Math.max(1, 0.32 * ppm);
+    // Poste de madera con el lado en sombra.
+    rect(ctx, x - w / 2, y - h - 0.5 * ppm, w, h + 0.5 * ppm, '#8a6a4a', ppm);
+    ctx.fillStyle = 'rgba(28,31,58,0.3)';
+    ctx.fillRect(x, y - h - 0.5 * ppm, w / 2, h + 0.5 * ppm);
+    // Cruceta y aisladores.
+    const arm = POLE.arm * ppm;
+    rect(ctx, x - arm, y - h, arm * 2, Math.max(1, 0.18 * ppm), '#7a5a40', ppm);
+    if (ppm > 3) {
+      ctx.fillStyle = '#c7cbe0';
+      for (const a of POLE.wires) ctx.fillRect(x + a * ppm - 0.06 * ppm, y - h - 0.22 * ppm, 0.12 * ppm, 0.22 * ppm);
+      rect(ctx, x - 0.35 * ppm, y - h * 0.72, 0.7 * ppm, 0.9 * ppm, '#7f93b0', ppm);
+    }
   },
 
   beacon(ctx, x, y, ppm, side, zone) {
@@ -235,7 +261,14 @@ const PROPS = {
 
 // Ancho de la huella de cada objeto (m) para su sombra, y sus luces (altura en m, color) para el
 // reflejo en el piso mojado de noche.
-const FOOTPRINT = { pillar: 2, lamp: 1.2, palm: 3.2, tree: 4.4, beacon: 1.6, screen: 6, billboard: 8, chevron: 2.6, distance: 1.6, grandstand: 15 };
+/**
+ * Postes de campo: uno cada `step` segmentos del lado `side`, con los cables en `wires` (m sobre
+ * la cruceta desde el eje del poste) a `height` m. El renderizador tiende el cable hasta el
+ * poste siguiente, que está `step` bandas más lejos.
+ */
+export const POLE = Object.freeze({ step: 13, side: 1, offset: 1.4, height: 8.4, arm: 0.95, wires: [-0.8, -0.28, 0.28, 0.8], sag: 0.55 });
+
+const FOOTPRINT = { pole: 0.8, oak: 6.5, house: 9, pillar: 2, lamp: 1.2, palm: 3.2, tree: 4.4, beacon: 1.6, screen: 6, billboard: 8, chevron: 2.6, distance: 1.6, grandstand: 15 };
 const LIGHTS = {
   lamp: (zone, side) => [[7.8, '#ffd36a', -side * 2.4, 1]],
   pillar: zone => [[4.95, zone.accent, 0, 0.6]],
@@ -308,6 +341,143 @@ function treeSprite() {
     g.fillRect(0, 0, w, h);
     g.globalCompositeOperation = 'source-over';
     sprites.set('arbol', c);
+    return c;
+  })();
+}
+
+/**
+ * Árbol de campo: copa ancha de racimos verde oscuro con las tapas al sol, como los de los
+ * fondos de mediodía. Dos variantes para que la fila no se vea copiada.
+ */
+function oakSprite(variant) {
+  const key = `roble:${variant}`;
+  return sprites.get(key) ?? (() => {
+    const P = SPRITE_PPM;
+    const s = 9 * P;
+    const w = s * 1.05;
+    const h = s * 1.0;
+    const c = spriteCanvas(w, h);
+    const g = c.getContext('2d');
+    const cx = w / 2;
+    const base = h - 2;
+    g.fillStyle = '#6b4f3a';
+    g.beginPath();
+    g.moveTo(cx - s * 0.06, base);
+    g.lineTo(cx - s * 0.035, base - s * 0.45);
+    g.lineTo(cx + s * 0.035, base - s * 0.45);
+    g.lineTo(cx + s * 0.06, base);
+    g.fill();
+    g.fillStyle = 'rgba(28,31,58,0.35)';
+    g.fillRect(cx, base - s * 0.45, s * 0.05, s * 0.45);
+    const cy = base - s * 0.62;
+    const R = s * 0.26;
+    const clumps = variant
+      ? [[0, 0, 1], [-0.95, 0.25, 0.7], [0.95, 0.2, 0.72], [-0.5, -0.65, 0.68], [0.45, -0.7, 0.66], [0, 0.5, 0.7], [-1.3, 0.5, 0.45], [1.3, 0.45, 0.48]]
+      : [[0, 0, 1.05], [-0.8, 0.3, 0.72], [0.85, 0.15, 0.7], [-0.35, -0.7, 0.7], [0.4, -0.6, 0.62], [0.1, 0.55, 0.65], [1.25, 0.55, 0.45]];
+    const blob = () => {
+      g.beginPath();
+      for (const [dx, dy, k] of clumps) {
+        g.moveTo(cx + dx * R + k * R, cy + dy * R);
+        g.arc(cx + dx * R, cy + dy * R, k * R, 0, Math.PI * 2);
+      }
+    };
+    g.fillStyle = '#2f6a3c';
+    g.strokeStyle = 'rgba(20,35,51,0.5)';
+    g.lineWidth = Math.max(1.5, s * 0.007);
+    blob();
+    g.stroke();
+    g.fill();
+    g.globalCompositeOperation = 'source-atop';
+    // Cada racimo: tapa iluminada arriba a la izquierda y sombra azulada abajo.
+    for (const [dx, dy, k] of [...clumps].sort((a, b) => b[1] - a[1])) {
+      const x = cx + dx * R;
+      const y = cy + dy * R;
+      g.fillStyle = radialFill(g, x + k * R * 0.3, y + k * R * 0.45, k * R, [[0, 'rgba(26,58,58,0.55)'], [1, 'rgba(26,58,58,0)']]);
+      g.fillRect(x - k * R * 1.2, y - k * R * 1.2, k * R * 2.6, k * R * 2.6);
+      g.fillStyle = radialFill(g, x - k * R * 0.3, y - k * R * 0.4, k * R * 0.85, [[0, 'rgba(150,214,90,0.95)'], [0.5, 'rgba(104,178,72,0.7)'], [1, 'rgba(104,178,72,0)']]);
+      g.fillRect(x - k * R * 1.2, y - k * R * 1.3, k * R * 2.2, k * R * 2.2);
+    }
+    g.globalCompositeOperation = 'source-over';
+    sprites.set(key, c);
+    return c;
+  })();
+}
+
+/**
+ * Casa de campo vista desde la ruta: hastial con techo a dos aguas y, del lado de la ruta, la
+ * pared larga en sombra con el alero. `side` dice de qué lado de la ruta está.
+ */
+function houseSprite(variant, side) {
+  const key = `casa:${variant}:${side}`;
+  return sprites.get(key) ?? (() => {
+    const P = SPRITE_PPM;
+    const wall = ['#efebe4', '#e6d9c4', '#f4efe6'][variant];
+    const roof = ['#8a4f3e', '#4f5d7a', '#6b4f3a'][variant];
+    const gw = 6 * P;          // ancho del hastial
+    const lw = 4 * P;          // pared larga en escorzo
+    const wh = 2.9 * P;        // alto de pared
+    const rh = 2.2 * P;        // alto del techo
+    const w = gw + lw + 0.8 * P;
+    const h = wh + rh + lw * 0.32 + 0.6 * P;
+    const c = spriteCanvas(w, h);
+    const g = c.getContext('2d');
+    const base = h - 2;
+    const toward = -side;      // la pared larga mira hacia la ruta
+    const gx = toward > 0 ? 0.4 * P : w - gw - 0.4 * P;
+    const lx = toward > 0 ? gx + gw : gx;
+    const rise = lw * 0.32;    // la pared larga se aleja y sube
+    const ink = 'rgba(20,35,51,0.6)';
+    g.lineWidth = Math.max(1.5, P * 0.06);
+    g.strokeStyle = ink;
+    // Pared larga en sombra, en escorzo.
+    const far = lx + toward * lw;
+    g.fillStyle = mix(wall, '#4f5d7a', 0.35);
+    g.beginPath();
+    g.moveTo(lx, base);
+    g.lineTo(far, base - rise);
+    g.lineTo(far, base - rise - wh);
+    g.lineTo(lx, base - wh);
+    g.closePath();
+    g.fill();
+    g.stroke();
+    // Faldón del techo sobre la pared larga.
+    g.fillStyle = mix(roof, '#1c1f3a', 0.25);
+    g.beginPath();
+    g.moveTo(lx + toward * -0.3 * P, base - wh + 0.15 * P);
+    g.lineTo(far + toward * 0.4 * P, base - rise - wh + 0.1 * P);
+    g.lineTo(far + toward * 0.4 * P - toward * gw * 0.5, base - rise - wh - rh);
+    g.lineTo(gx + gw / 2, base - wh - rh);
+    g.closePath();
+    g.fill();
+    g.stroke();
+    // Hastial.
+    g.fillStyle = wall;
+    g.beginPath();
+    g.moveTo(gx, base);
+    g.lineTo(gx, base - wh);
+    g.lineTo(gx + gw / 2, base - wh - rh);
+    g.lineTo(gx + gw, base - wh);
+    g.lineTo(gx + gw, base);
+    g.closePath();
+    g.fill();
+    g.stroke();
+    // Alero del hastial y ventanas.
+    g.strokeStyle = roof;
+    g.lineWidth = 0.35 * P;
+    g.beginPath();
+    g.moveTo(gx - 0.35 * P, base - wh + 0.2 * P);
+    g.lineTo(gx + gw / 2, base - wh - rh - 0.1 * P);
+    g.lineTo(gx + gw + 0.35 * P, base - wh + 0.2 * P);
+    g.stroke();
+    g.fillStyle = '#353a6e';
+    g.fillRect(gx + gw * 0.18, base - wh * 0.72, gw * 0.2, wh * 0.36);
+    g.fillRect(gx + gw * 0.62, base - wh * 0.72, gw * 0.2, wh * 0.36);
+    g.fillStyle = 'rgba(169,207,224,0.55)';
+    g.fillRect(gx + gw * 0.18, base - wh * 0.72, gw * 0.08, wh * 0.36);
+    g.fillRect(gx + gw * 0.62, base - wh * 0.72, gw * 0.08, wh * 0.36);
+    g.fillStyle = 'rgba(20,35,51,0.12)';
+    g.fillRect(gx, base - wh * 0.18, gw, wh * 0.18);
+    sprites.set(key, c);
     return c;
   })();
 }
@@ -443,6 +613,7 @@ export function propsAt(segment, zone, track, boards = null, out = []) {
     out.push({ kind, side: i % 14 === 0 ? -1 : 1, offset: 3 + Math.abs(hashNoise(i, 5)) * 6 });
   }
   if (zone.lamps && i % 11 === 0) out.push({ kind: 'lamp', side: i % 22 === 0 ? 1 : -1, offset: 0.8 });
+  if (zone.poles && i % POLE.step === 0) out.push({ kind: 'pole', side: POLE.side, offset: POLE.offset });
   return out;
 }
 

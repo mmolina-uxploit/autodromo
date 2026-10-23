@@ -391,6 +391,67 @@
         "brillo_asfalto": 0.16,
         "piso_mojado": 0.7
       }
+    },
+    {
+      "id": "valle-alto",
+      "nombre": "Valle Alto",
+      "hora": "día",
+      "referencias": [
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ],
+      "cielo": [
+        "#2a74d6",
+        "#6db3ee",
+        "#d4ecf7"
+      ],
+      "niebla": "#cfe5df",
+      "pista": {
+        "asfalto": [
+          "#6b717b",
+          "#666c76"
+        ],
+        "cordon": [
+          "#f4f6fa",
+          "#d9dfe6"
+        ],
+        "carril": "#f4f6fa",
+        "suelo": [
+          "#79c24b",
+          "#70b944"
+        ]
+      },
+      "siluetas": [
+        "montaña verde con ladera en sombra",
+        "lomas con montes de árboles",
+        "arboleda y casas de techo a dos aguas",
+        "postes de madera con cables",
+        "cúmulos altos de mediodía"
+      ],
+      "emisivos": [],
+      "atmosfera": {
+        "cenit": "#155bbf",
+        "resplandor": [
+          "#fff4dc",
+          0.3
+        ],
+        "bruma": [
+          "#d6edf4",
+          0.32
+        ],
+        "nubes": {
+          "luz": "#ffffff",
+          "sombra": "#a8bfdd",
+          "borde": "#ffffff",
+          "iluminadas": "desde arriba",
+          "cantidad": 6,
+          "forma": "torre"
+        },
+        "brillo_asfalto": 0.14,
+        "piso_mojado": 0
+      }
     }
   ],
   "vehiculos": {

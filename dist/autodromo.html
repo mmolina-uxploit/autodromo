@@ -791,6 +791,20 @@ const ZONES = Object.freeze([
       windows: ['#5fe8f0', '#ff4fa8', '#c8f05a', '#fff4dc'], beams: ['#5fe8f0', '#ff4fa8'],
       sheen: 0.16, wet: 0.7
     }
+  },
+  {
+    id: 'valle-alto', name: 'Valle Alto', time: 'día',
+    sky: ['#2a74d6', '#6db3ee', '#d4ecf7'], fog: '#cfe5df',
+    road: { asphalt: ['#6b717b', '#666c76'], rumble: ['#f4f6fa', '#d9dfe6'], lane: '#f4f6fa', ground: ['#79c24b', '#70b944'] },
+    wall: { face: ['#c7cbe0', '#7f93b0'], top: '#efebe4', stripe: '#b6e03a', height: 0.7 },
+    gap: { top: '#4f5d7a', bottom: '#1c1f3a', shimmer: '#5fe3f0' },
+    props: ['oak', 'oak', 'house'], lamps: false, poles: true,
+    backdrop: 'valley', accent: '#b6e03a', smoke: '#efebe4', dust: '#c7cbe0',
+    atmosphere: {
+      zenith: '#155bbf', glow: ['#fff4dc', 0.3], haze: ['#d6edf4', 0.32],
+      cloud: { light: '#ffffff', shade: '#a8bfdd', rim: '#ffffff', lit: 'above', count: 6, tall: true },
+      sheen: 0.14, wet: 0
+    }
   }
 ].map(zone => Object.freeze(zone)));
 
@@ -913,6 +927,29 @@ const TRACKS = Object.freeze([
       turn(40, -60),
       straight(100, { adjust: true }),
       turn(70, 100, { hill: 4 })
+    ]
+  },
+  {
+    id: 'valle-alto',
+    name: 'Valle Alto',
+    zone: 'valle-alto',
+    tagline: 'Fluida. Camino de campo entre arrozales, curvas largas al pie de la montaña y un salto sobre el arroyo.',
+    width: 11,
+    runoff: 9,
+    layout: [
+      straight(280, { adjust: true, boost: 0.5 }),
+      turn(160, 60, { hill: 5 }),
+      straight(200, { hill: -3 }),
+      turn(110, -75),
+      turn(140, 90, { hill: 6 }),
+      straight(260, { hill: -6, boost: 0.45 }),
+      jump({ ramp: 44, height: 3.2, gap: 26, landing: 38, landingHeight: 2 }),
+      turn(90, 110, { hill: 3 }),
+      straight(140),
+      turn(200, -45, { hill: -4 }),
+      turn(70, 100),
+      straight(180, { adjust: true }),
+      turn(150, 120, { hill: -1 })
     ]
   }
 ].map(track => Object.freeze({ ...track, layout: Object.freeze(track.layout) })));
@@ -3856,22 +3893,46 @@ function paintMoon(ctx, zone, { width: W, horizon: hy, unit }, offset) {
  */
 function paintCloud(cloud, seed, width) {
   const rnd = seeded(seed);
-  const height = width * 0.42;
+  const height = width * (cloud.tall ? 0.82 : 0.42);
   const c = offscreen(width, height);
   const g = c.getContext('2d');
-  const base = height * 0.8;
+  const base = height * (cloud.tall ? 0.9 : 0.8);
   const puffs = [];
-  const n = 9 + Math.floor(rnd() * 6);
-  for (let i = 0; i < n; i++) {
-    const t = (i + 0.5) / n;
-    const dome = Math.sin(Math.PI * t);
-    const r = height * (0.14 + 0.24 * dome * (0.75 + 0.5 * rnd()));
-    puffs.push({ x: width * (0.1 + 0.8 * t + (rnd() - 0.5) * 0.05), y: base - r * (0.45 + 0.4 * rnd()), r });
-  }
-  for (let i = 0; i < n / 2; i++) {
-    const t = 0.3 + 0.4 * rnd();
-    const r = height * (0.16 + 0.12 * rnd());
-    puffs.push({ x: width * t, y: base - height * (0.32 + 0.18 * rnd()) - r * 0.3, r });
+  if (cloud.tall) {
+    // Cúmulo de mediodía: base ancha y chata, y encima una torre de bollos que se angosta y se
+    // corre un poco al subir. Los bollos grandes de arriba son los que le dan el volumen.
+    const n = 10 + Math.floor(rnd() * 5);
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.5) / n;
+      const r = width * (0.05 + 0.06 * Math.sin(Math.PI * t) * (0.7 + 0.6 * rnd()));
+      puffs.push({ x: width * (0.06 + 0.88 * t), y: base - r * (0.5 + 0.3 * rnd()), r });
+    }
+    const levels = 7 + Math.floor(rnd() * 3);
+    const lean = (rnd() - 0.5) * 0.18;
+    for (let j = 0; j < levels; j++) {
+      const u = (j + 1) / levels;
+      const spread = width * (0.42 - 0.26 * u);
+      const cx = width * (0.5 + lean * u);
+      const y = base - (height * 0.74) * u;
+      const per = 2 + Math.floor((1 - u) * 3 + rnd() * 1.5);
+      for (let k = 0; k < per; k++) {
+        const r = width * (0.08 + 0.1 * (1 - u * 0.5) * (0.7 + 0.6 * rnd()));
+        puffs.push({ x: cx + (per === 1 ? 0 : (k / (per - 1) - 0.5) * 2 * spread * 0.7) + (rnd() - 0.5) * r * 0.5, y: y + r * 0.35, r });
+      }
+    }
+  } else {
+    const n = 9 + Math.floor(rnd() * 6);
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.5) / n;
+      const dome = Math.sin(Math.PI * t);
+      const r = height * (0.14 + 0.24 * dome * (0.75 + 0.5 * rnd()));
+      puffs.push({ x: width * (0.1 + 0.8 * t + (rnd() - 0.5) * 0.05), y: base - r * (0.45 + 0.4 * rnd()), r });
+    }
+    for (let i = 0; i < n / 2; i++) {
+      const t = 0.3 + 0.4 * rnd();
+      const r = height * (0.16 + 0.12 * rnd());
+      puffs.push({ x: width * t, y: base - height * (0.32 + 0.18 * rnd()) - r * 0.3, r });
+    }
   }
   // Silueta: bollos de borde suave, cortados en la base.
   const silhouette = (target, color, dx = 0, dy = 0) => {
@@ -3882,7 +3943,7 @@ function paintCloud(cloud, seed, width) {
     for (const p of puffs) {
       const x = p.x + dx;
       const y = p.y + dy;
-      target.fillStyle = radial(target, x, y, p.r, [[0, color], [0.78, color], [1, rgba(color, 0)]]);
+      target.fillStyle = radial(target, x, y, p.r, [[0, color], [cloud.tall ? 0.9 : 0.78, color], [1, rgba(color, 0)]]);
       target.fillRect(x - p.r, y - p.r, p.r * 2, p.r * 2);
     }
     target.restore();
@@ -3897,7 +3958,17 @@ function paintCloud(cloud, seed, width) {
   g.globalAlpha = 0.85;
   g.fillRect(0, 0, width, height);
   g.globalAlpha = 1;
-  for (const p of puffs) {
+  if (cloud.tall) {
+    // Cada bollo con su media luna de sombra abajo a la derecha: es lo que lo hace coliflor.
+    // De abajo hacia arriba, así los de arriba tapan la sombra de los de abajo.
+    for (const p of [...puffs].sort((a, b) => b.y - a.y)) {
+      g.fillStyle = radial(g, p.x + p.r * 0.35, p.y + p.r * 0.4, p.r * 0.95, [[0, rgba(cloud.shade, 0.5)], [0.7, rgba(cloud.shade, 0.22)], [1, rgba(cloud.shade, 0)]]);
+      g.fillRect(p.x - p.r * 0.7, p.y - p.r * 0.6, p.r * 2, p.r * 2);
+      g.fillStyle = radial(g, p.x - p.r * 0.25, p.y - p.r * 0.35, p.r * 0.75, [[0, rgba(cloud.light, 0.95)], [0.6, rgba(cloud.light, 0.6)], [1, rgba(cloud.light, 0)]]);
+      g.fillRect(p.x - p.r, p.y - p.r * 1.1, p.r * 1.5, p.r * 1.5);
+    }
+  }
+  for (const p of cloud.tall ? [] : puffs) {
     const lx = p.x - p.r * 0.3;
     const ly = above ? p.y - p.r * 0.35 : p.y + p.r * 0.45;
     g.fillStyle = radial(g, lx, ly, p.r * 0.95, [[0, rgba(cloud.light, above ? 0.9 : 0.55)], [1, rgba(cloud.light, 0)]]);
@@ -3927,7 +3998,7 @@ function cloudSet(zone, unit, W) {
   const cloud = zone.atmosphere.cloud;
   return cached(sprites, `nubes:${zone.id}:${Math.round(W)}`, () => Array.from({ length: cloud.count }, (_, i) => {
     const depth = (i + 0.5) / cloud.count;
-    const width = W * (0.14 + 0.26 * depth * (0.8 + 0.4 * ((i * 37) % 10) / 10));
+    const width = W * (cloud.tall ? 0.15 + 0.2 * depth : 0.14 + 0.26 * depth) * (0.8 + 0.4 * ((i * 37) % 10) / 10);
     return { depth, sprite: paintCloud(cloud, i * 17 + zone.id.length, width), seed: i };
   }));
 }
@@ -3939,8 +4010,11 @@ function paintClouds(ctx, zone, viewport, offset, clock = 0) {
   for (const { depth, sprite, seed } of cloudSet(zone, unit, W)) {
     const span = W + sprite.width;
     const x = wrap(((seed * 211) % 1000) / 1000 * span - offset * (0.03 + 0.05 * depth) + clock * (2 + 4 * depth), span) - sprite.width;
-    const y = hy * (0.58 - 0.5 * depth) - sprite.height * 0.5;
-    ctx.globalAlpha = 0.55 + 0.45 * depth;
+    // Los cúmulos altos apoyan la base cerca del horizonte y crecen hacia arriba.
+    const y = zone.atmosphere.cloud.tall
+      ? hy * (0.86 - 0.22 * depth) - sprite.height * 0.9
+      : hy * (0.58 - 0.5 * depth) - sprite.height * 0.5;
+    ctx.globalAlpha = zone.atmosphere.cloud.tall ? 0.88 + 0.12 * depth : 0.55 + 0.45 * depth;
     ctx.drawImage(sprite, x, y);
   }
   ctx.globalAlpha = 1;
@@ -4087,6 +4161,161 @@ function capsule(g, x, w, h, base, fill) {
   g.lineTo(x + w, base);
   g.closePath();
   g.fill();
+}
+
+/**
+ * Perfil de cresta que se repite cada W: suma de senos con frecuencias enteras, así la capa
+ * cierra sin costura al desplazarse. Devuelve alturas en [0, 1] por píxel.
+ */
+function ridgeProfile(W, seed, octaves) {
+  const rnd = seeded(seed);
+  const waves = octaves.map(([cycles, weight]) => ({ k: cycles, w: weight, phase: rnd() * Math.PI * 2 }));
+  const total = waves.reduce((a, b) => a + b.w, 0);
+  const h = new Float32Array(Math.ceil(W) + 1);
+  for (let x = 0; x < h.length; x++) {
+    let v = 0;
+    for (const { k, w, phase } of waves) v += w * Math.sin((x / W) * Math.PI * 2 * k + phase);
+    h[x] = 0.5 + 0.5 * v / total;
+  }
+  return h;
+}
+
+const rgbOf = hex => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+
+/**
+ * Cordón de montañas pintado como en un fondo de animé. La luz viene de la izquierda y se
+ * calcula por píxel: la pendiente de la cresta decide qué ladera mira al sol, y los espolones
+ * (aristas que bajan del pico abriéndose en abanico) parten cada ladera en caras claras y
+ * oscuras. Abajo la bruma lava el color. `height(x)` da la altura en píxeles sobre `base`.
+ */
+function paintRange(g, W, base, height, { lit, shade, haze, hazeAlpha, spurs = 0, dots }) {
+  const n = Math.ceil(W);
+  const hs = new Float32Array(n + 1);
+  let top = base;
+  for (let x = 0; x <= n; x++) { hs[x] = height(x); top = Math.min(top, base - hs[x]); }
+  // Pendiente de la cresta, suavizada: la forma grande de la ladera, sin el serrucho fino.
+  const span = Math.max(2, Math.round(W * 0.012));
+  const slope = new Float32Array(n + 1);
+  for (let x = 0; x <= n; x++) {
+    const a = hs[Math.max(0, x - span)];
+    const b = hs[Math.min(n, x + span)];
+    slope[x] = (b - a) / (2 * span);
+  }
+  const y0 = Math.max(0, Math.floor(top));
+  const rows = Math.ceil(base) - y0;
+  if (rows <= 0) return;
+  const img = g.createImageData(n, rows);
+  const L = rgbOf(lit), S = rgbOf(shade), Hz = rgbOf(haze);
+  const rnd = seeded(Math.round(W) + Math.round(base));
+  const ribs = [[7, 1, rnd() * 6.3], [13, 0.55, rnd() * 6.3], [23, 0.3, rnd() * 6.3]];
+  // Cumbre que manda en cada columna: la más alta a menos de un séptimo de pantalla.
+  // Se busca sobre la cresta suavizada: así solo cuentan los picos grandes y el abanico no
+  // salta de un diente a otro del serrucho.
+  const reach = Math.round(W / 7);
+  const wide = Math.max(3, Math.round(W * 0.03));
+  const smooth = new Float32Array(n + 1);
+  for (let x = 0; x <= n; x++) {
+    let acc = 0;
+    for (let d = -wide; d <= wide; d += 2) acc += hs[((x + d) % (n + 1) + n + 1) % (n + 1)];
+    smooth[x] = acc / (wide + 1);
+  }
+  const summit = new Int32Array(n + 1);
+  for (let x = 0; x <= n; x++) {
+    let best = x;
+    let score = smooth[x];
+    for (let d = -reach; d <= reach; d += 2) {
+      const xx = ((x + d) % (n + 1) + n + 1) % (n + 1);
+      const sc = smooth[xx] - Math.abs(d) * 0.05;
+      if (sc > score) { best = xx; score = sc; }
+    }
+    summit[x] = best;
+  }
+  for (let x = 0; x < n; x++) {
+    const h = hs[x];
+    if (h <= 0.5) continue;
+    const ridgeY = base - h;
+    const px = summit[x];
+    let dx = x - px;
+    if (dx > n / 2) dx -= n; else if (dx < -n / 2) dx += n;
+    const py = base - hs[px];
+    for (let y = Math.max(y0, Math.floor(ridgeY)); y < base; y++) {
+      const v = Math.min(1, (base - y) / h);  // 1 en la cresta, 0 al pie
+      // Espolones: rayos que bajan desde la cumbre y se abren en abanico, como el agua que
+      // fue tallando la ladera.
+      const ang = Math.atan2(dx, y - py + h * 0.15);
+      let rib = 0;
+      for (const [k, w, ph] of ribs) rib += w * Math.cos(ang * k + ph + Math.sin(dx * 0.02 + ph) * 0.4);
+      const face = clamp(slope[x] * 2.2, -1, 1) * (0.35 + 0.65 * v);
+      let light = 0.55 + 0.55 * face + spurs * 0.32 * rib * (0.3 + 0.7 * v);
+      light = clamp(light, 0, 1);
+      // Tres tonos con transición corta: se lee como celda pintada, no como degradé de foto.
+      const t = light < 0.42 ? light * 0.45 : light > 0.62 ? 0.75 + (light - 0.62) * 0.65 : 0.19 + (light - 0.42) * 2.8;
+      const hz = hazeAlpha * (1 - v) ** 1.6;
+      const i = ((y - y0) * n + x) * 4;
+      for (let c = 0; c < 3; c++) {
+        const col = S[c] + (L[c] - S[c]) * clamp(t, 0, 1);
+        img.data[i + c] = col + (Hz[c] - col) * hz;
+      }
+      // Borde de la cresta suavizado medio píxel.
+      img.data[i + 3] = y < ridgeY + 1 ? 255 * (1 - (ridgeY - Math.floor(ridgeY))) : 255;
+    }
+  }
+  const layer = offscreen(n, rows);
+  layer.getContext('2d').putImageData(img, 0, 0);
+  g.drawImage(layer, 0, y0);
+  // Monte: pocos manchones de árboles achatados, en la parte baja y siempre del mismo verde.
+  if (dots) {
+    const r = seeded(dots.seed);
+    for (let i = 0; i < dots.count; i++) {
+      const x = r() * n;
+      const h = hs[Math.floor(x)];
+      if (h < 4) continue;
+      const v = 0.05 + 0.4 * r() ** 1.8;
+      const y = base - h * v;
+      const s = dots.size * (0.6 + 0.9 * r());
+      g.fillStyle = rgba(mix(dots.color, haze, hazeAlpha * (1 - v) ** 1.6), 0.55);
+      g.beginPath();
+      g.ellipse(x, y, s * 2.2, s * 0.8, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+}
+
+/** Copa de árbol en el horizonte: bollos oscuros con la tapa iluminada. */
+function crown(g, x, base, r, dark, light) {
+  g.fillStyle = dark;
+  for (const [dx, dy, s] of [[-0.55, -0.55, 0.7], [0.5, -0.6, 0.75], [0, -1.05, 0.85], [-0.2, -0.3, 0.8], [0.35, -0.25, 0.7]]) {
+    g.beginPath();
+    g.arc(x + dx * r, base + dy * r, s * r, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.fillStyle = light;
+  for (const [dx, dy, s] of [[-0.35, -1.25, 0.45], [0.35, -0.9, 0.35], [-0.75, -0.75, 0.3]]) {
+    g.beginPath();
+    g.arc(x + dx * r, base + dy * r, s * r, 0, Math.PI * 2);
+    g.fill();
+  }
+}
+
+/** Casa baja de campo: pared clara, techo a dos aguas con alero oscuro. */
+function farmhouse(g, x, base, w, wall, roof) {
+  const h = w * 0.42;
+  g.fillStyle = wall;
+  g.fillRect(x, base - h, w, h);
+  g.fillStyle = rgba('#1c1f3a', 0.18);
+  g.fillRect(x + w * 0.62, base - h, w * 0.38, h);
+  g.fillStyle = roof;
+  g.beginPath();
+  g.moveTo(x - w * 0.08, base - h);
+  g.lineTo(x + w * 0.3, base - h - w * 0.3);
+  g.lineTo(x + w * 1.02, base - h - w * 0.3);
+  g.lineTo(x + w * 1.1, base - h);
+  g.closePath();
+  g.fill();
+  g.fillStyle = rgba('#1c1f3a', 0.35);
+  g.fillRect(x - w * 0.08, base - h, w * 1.18, Math.max(1, w * 0.04));
+  g.fillStyle = rgba('#1c1f3a', 0.55);
+  for (let i = 0; i < 2; i++) g.fillRect(x + w * (0.14 + i * 0.26), base - h * 0.62, w * 0.12, h * 0.3);
 }
 
 /** Capas de cada zona: { factor de paralaje, pintar(g, W, H, hy, unit) }. */
@@ -4242,6 +4471,64 @@ const SKYLINES = {
           const color = mix(colors[i % colors.length], haze, 0.12);
           tile(W, nx * W, x => tower(g, x, nw * W, nh * H, hy, color, false));
         });
+      } }
+    ];
+  },
+
+  valley(zone) {
+    const haze = zone.atmosphere.haze[0];
+    return [
+      // Cordillera lejana, casi celeste por la distancia.
+      { factor: 0.03, paint(g, W, H, hy) {
+        const p = ridgeProfile(W, 11, [[2, 1], [5, 0.45], [11, 0.18]]);
+        paintRange(g, W, hy, x => H * (0.06 + 0.07 * p[x % p.length]), {
+          lit: mix('#8db3cf', haze, 0.3), shade: '#5d7fa6', haze, hazeAlpha: 0.7, spurs: 0.5
+        });
+      } },
+      // La montaña: un pico grande con hombros y uno menor al costado.
+      { factor: 0.07, paint(g, W, H, hy) {
+        const p = ridgeProfile(W, 23, [[3, 0.5], [7, 0.3], [17, 0.12], [31, 0.05]]);
+        const peak = (x, cx, half, h) => {
+          const t = Math.abs(((x - cx + W * 1.5) % W) - W / 2) / half;
+          return t >= 1 ? 0 : h * (1 - t ** 1.35);
+        };
+        paintRange(g, W, hy, x => {
+          const xi = x % p.length;
+          const m = Math.max(peak(x, W * 0.52, W * 0.34, H * 0.24), peak(x, W * 0.14, W * 0.2, H * 0.13), peak(x, W * 0.86, W * 0.22, H * 0.15));
+          return m > 0 ? m * (0.88 + 0.24 * p[xi]) + H * 0.02 : H * 0.02 * p[xi];
+        }, {
+          lit: '#5fae52', shade: '#1f4f4c', haze, hazeAlpha: 0.6, spurs: 1,
+          dots: { seed: 5, count: 90, size: Math.max(1.2, H * 0.004), color: '#2d6a3e' }
+        });
+      } },
+      // Lomas cercanas, más verdes y con montes de árboles.
+      { factor: 0.16, paint(g, W, H, hy) {
+        const p = ridgeProfile(W, 41, [[4, 1], [9, 0.5], [19, 0.2]]);
+        paintRange(g, W, hy, x => H * (0.015 + 0.055 * p[x % p.length]), {
+          lit: '#74bd4c', shade: '#2f6e44', haze, hazeAlpha: 0.3, spurs: 0.4,
+          dots: { seed: 9, count: 60, size: Math.max(1.5, H * 0.006), color: '#2f7a3a' }
+        });
+      } },
+      // Arboleda y casas sobre el borde del campo.
+      { factor: 0.3, paint(g, W, H, hy) {
+        const rnd = seeded(61);
+        const base = hy + 1;
+        for (let i = 0; i < 18; i++) {
+          const x = rnd() * W;
+          const w = H * (0.022 + 0.016 * rnd());
+          const roof = ['#8a4f3e', '#4f5d7a', '#7a5a40', '#353a6e'][Math.floor(rnd() * 4)];
+          if (i % 3 === 0) tile(W, x, xx => farmhouse(g, xx, base, w, mix('#efebe4', haze, 0.15), roof));
+        }
+        for (let i = 0; i < 70; i++) {
+          const x = rnd() * W;
+          const r = H * (0.008 + 0.014 * rnd() ** 1.5);
+          tile(W, x, xx => crown(g, xx, base, r, mix('#2f6e3c', haze, 0.12), mix('#7cc35a', haze, 0.1)));
+        }
+      } },
+      // Franja de campo al pie: une el horizonte con el pasto de la pista.
+      { factor: 0, paint(g, W, H, hy) {
+        g.fillStyle = linear(g, 0, hy - H * 0.006, 0, hy + 1, [[0, rgba('#8fd05a', 0)], [1, rgba('#8fd05a', 0.7)]]);
+        g.fillRect(0, hy - H * 0.006, W, H * 0.006 + 1);
       } }
     ];
   },
@@ -4450,6 +4737,7 @@ return { glowSprite, paintGlow };
 __m["src/infrastructure/rendering/props.js"] = (() => {
 const { hashNoise } = __m["src/domain/math.js"];
 const { paintGlow, glowSprite } = __m["src/infrastructure/rendering/glow.js"];
+const { mix } = __m["src/infrastructure/rendering/backdrop.js"];
 
 /**
  * Utilería al costado de la pista, dibujada en pantalla a partir del punto del piso (x, y)
@@ -4553,6 +4841,31 @@ const PROPS = {
 
   tree(ctx, x, y, ppm) {
     drawSprite(ctx, treeSprite(), x, y, ppm);
+  },
+
+  oak(ctx, x, y, ppm, side, zone, night, seed) {
+    drawSprite(ctx, oakSprite(Math.abs(seed) % 2), x, y, ppm);
+  },
+
+  house(ctx, x, y, ppm, side, zone, night, seed) {
+    drawSprite(ctx, houseSprite(Math.abs(seed) % 3, side), x, y, ppm);
+  },
+
+  pole(ctx, x, y, ppm) {
+    const h = POLE.height * ppm;
+    const w = Math.max(1, 0.32 * ppm);
+    // Poste de madera con el lado en sombra.
+    rect(ctx, x - w / 2, y - h - 0.5 * ppm, w, h + 0.5 * ppm, '#8a6a4a', ppm);
+    ctx.fillStyle = 'rgba(28,31,58,0.3)';
+    ctx.fillRect(x, y - h - 0.5 * ppm, w / 2, h + 0.5 * ppm);
+    // Cruceta y aisladores.
+    const arm = POLE.arm * ppm;
+    rect(ctx, x - arm, y - h, arm * 2, Math.max(1, 0.18 * ppm), '#7a5a40', ppm);
+    if (ppm > 3) {
+      ctx.fillStyle = '#c7cbe0';
+      for (const a of POLE.wires) ctx.fillRect(x + a * ppm - 0.06 * ppm, y - h - 0.22 * ppm, 0.12 * ppm, 0.22 * ppm);
+      rect(ctx, x - 0.35 * ppm, y - h * 0.72, 0.7 * ppm, 0.9 * ppm, '#7f93b0', ppm);
+    }
   },
 
   beacon(ctx, x, y, ppm, side, zone) {
@@ -4685,7 +4998,14 @@ const PROPS = {
 
 // Ancho de la huella de cada objeto (m) para su sombra, y sus luces (altura en m, color) para el
 // reflejo en el piso mojado de noche.
-const FOOTPRINT = { pillar: 2, lamp: 1.2, palm: 3.2, tree: 4.4, beacon: 1.6, screen: 6, billboard: 8, chevron: 2.6, distance: 1.6, grandstand: 15 };
+/**
+ * Postes de campo: uno cada `step` segmentos del lado `side`, con los cables en `wires` (m sobre
+ * la cruceta desde el eje del poste) a `height` m. El renderizador tiende el cable hasta el
+ * poste siguiente, que está `step` bandas más lejos.
+ */
+const POLE = Object.freeze({ step: 13, side: 1, offset: 1.4, height: 8.4, arm: 0.95, wires: [-0.8, -0.28, 0.28, 0.8], sag: 0.55 });
+
+const FOOTPRINT = { pole: 0.8, oak: 6.5, house: 9, pillar: 2, lamp: 1.2, palm: 3.2, tree: 4.4, beacon: 1.6, screen: 6, billboard: 8, chevron: 2.6, distance: 1.6, grandstand: 15 };
 const LIGHTS = {
   lamp: (zone, side) => [[7.8, '#ffd36a', -side * 2.4, 1]],
   pillar: zone => [[4.95, zone.accent, 0, 0.6]],
@@ -4758,6 +5078,143 @@ function treeSprite() {
     g.fillRect(0, 0, w, h);
     g.globalCompositeOperation = 'source-over';
     sprites.set('arbol', c);
+    return c;
+  })();
+}
+
+/**
+ * Árbol de campo: copa ancha de racimos verde oscuro con las tapas al sol, como los de los
+ * fondos de mediodía. Dos variantes para que la fila no se vea copiada.
+ */
+function oakSprite(variant) {
+  const key = `roble:${variant}`;
+  return sprites.get(key) ?? (() => {
+    const P = SPRITE_PPM;
+    const s = 9 * P;
+    const w = s * 1.05;
+    const h = s * 1.0;
+    const c = spriteCanvas(w, h);
+    const g = c.getContext('2d');
+    const cx = w / 2;
+    const base = h - 2;
+    g.fillStyle = '#6b4f3a';
+    g.beginPath();
+    g.moveTo(cx - s * 0.06, base);
+    g.lineTo(cx - s * 0.035, base - s * 0.45);
+    g.lineTo(cx + s * 0.035, base - s * 0.45);
+    g.lineTo(cx + s * 0.06, base);
+    g.fill();
+    g.fillStyle = 'rgba(28,31,58,0.35)';
+    g.fillRect(cx, base - s * 0.45, s * 0.05, s * 0.45);
+    const cy = base - s * 0.62;
+    const R = s * 0.26;
+    const clumps = variant
+      ? [[0, 0, 1], [-0.95, 0.25, 0.7], [0.95, 0.2, 0.72], [-0.5, -0.65, 0.68], [0.45, -0.7, 0.66], [0, 0.5, 0.7], [-1.3, 0.5, 0.45], [1.3, 0.45, 0.48]]
+      : [[0, 0, 1.05], [-0.8, 0.3, 0.72], [0.85, 0.15, 0.7], [-0.35, -0.7, 0.7], [0.4, -0.6, 0.62], [0.1, 0.55, 0.65], [1.25, 0.55, 0.45]];
+    const blob = () => {
+      g.beginPath();
+      for (const [dx, dy, k] of clumps) {
+        g.moveTo(cx + dx * R + k * R, cy + dy * R);
+        g.arc(cx + dx * R, cy + dy * R, k * R, 0, Math.PI * 2);
+      }
+    };
+    g.fillStyle = '#2f6a3c';
+    g.strokeStyle = 'rgba(20,35,51,0.5)';
+    g.lineWidth = Math.max(1.5, s * 0.007);
+    blob();
+    g.stroke();
+    g.fill();
+    g.globalCompositeOperation = 'source-atop';
+    // Cada racimo: tapa iluminada arriba a la izquierda y sombra azulada abajo.
+    for (const [dx, dy, k] of [...clumps].sort((a, b) => b[1] - a[1])) {
+      const x = cx + dx * R;
+      const y = cy + dy * R;
+      g.fillStyle = radialFill(g, x + k * R * 0.3, y + k * R * 0.45, k * R, [[0, 'rgba(26,58,58,0.55)'], [1, 'rgba(26,58,58,0)']]);
+      g.fillRect(x - k * R * 1.2, y - k * R * 1.2, k * R * 2.6, k * R * 2.6);
+      g.fillStyle = radialFill(g, x - k * R * 0.3, y - k * R * 0.4, k * R * 0.85, [[0, 'rgba(150,214,90,0.95)'], [0.5, 'rgba(104,178,72,0.7)'], [1, 'rgba(104,178,72,0)']]);
+      g.fillRect(x - k * R * 1.2, y - k * R * 1.3, k * R * 2.2, k * R * 2.2);
+    }
+    g.globalCompositeOperation = 'source-over';
+    sprites.set(key, c);
+    return c;
+  })();
+}
+
+/**
+ * Casa de campo vista desde la ruta: hastial con techo a dos aguas y, del lado de la ruta, la
+ * pared larga en sombra con el alero. `side` dice de qué lado de la ruta está.
+ */
+function houseSprite(variant, side) {
+  const key = `casa:${variant}:${side}`;
+  return sprites.get(key) ?? (() => {
+    const P = SPRITE_PPM;
+    const wall = ['#efebe4', '#e6d9c4', '#f4efe6'][variant];
+    const roof = ['#8a4f3e', '#4f5d7a', '#6b4f3a'][variant];
+    const gw = 6 * P;          // ancho del hastial
+    const lw = 4 * P;          // pared larga en escorzo
+    const wh = 2.9 * P;        // alto de pared
+    const rh = 2.2 * P;        // alto del techo
+    const w = gw + lw + 0.8 * P;
+    const h = wh + rh + lw * 0.32 + 0.6 * P;
+    const c = spriteCanvas(w, h);
+    const g = c.getContext('2d');
+    const base = h - 2;
+    const toward = -side;      // la pared larga mira hacia la ruta
+    const gx = toward > 0 ? 0.4 * P : w - gw - 0.4 * P;
+    const lx = toward > 0 ? gx + gw : gx;
+    const rise = lw * 0.32;    // la pared larga se aleja y sube
+    const ink = 'rgba(20,35,51,0.6)';
+    g.lineWidth = Math.max(1.5, P * 0.06);
+    g.strokeStyle = ink;
+    // Pared larga en sombra, en escorzo.
+    const far = lx + toward * lw;
+    g.fillStyle = mix(wall, '#4f5d7a', 0.35);
+    g.beginPath();
+    g.moveTo(lx, base);
+    g.lineTo(far, base - rise);
+    g.lineTo(far, base - rise - wh);
+    g.lineTo(lx, base - wh);
+    g.closePath();
+    g.fill();
+    g.stroke();
+    // Faldón del techo sobre la pared larga.
+    g.fillStyle = mix(roof, '#1c1f3a', 0.25);
+    g.beginPath();
+    g.moveTo(lx + toward * -0.3 * P, base - wh + 0.15 * P);
+    g.lineTo(far + toward * 0.4 * P, base - rise - wh + 0.1 * P);
+    g.lineTo(far + toward * 0.4 * P - toward * gw * 0.5, base - rise - wh - rh);
+    g.lineTo(gx + gw / 2, base - wh - rh);
+    g.closePath();
+    g.fill();
+    g.stroke();
+    // Hastial.
+    g.fillStyle = wall;
+    g.beginPath();
+    g.moveTo(gx, base);
+    g.lineTo(gx, base - wh);
+    g.lineTo(gx + gw / 2, base - wh - rh);
+    g.lineTo(gx + gw, base - wh);
+    g.lineTo(gx + gw, base);
+    g.closePath();
+    g.fill();
+    g.stroke();
+    // Alero del hastial y ventanas.
+    g.strokeStyle = roof;
+    g.lineWidth = 0.35 * P;
+    g.beginPath();
+    g.moveTo(gx - 0.35 * P, base - wh + 0.2 * P);
+    g.lineTo(gx + gw / 2, base - wh - rh - 0.1 * P);
+    g.lineTo(gx + gw + 0.35 * P, base - wh + 0.2 * P);
+    g.stroke();
+    g.fillStyle = '#353a6e';
+    g.fillRect(gx + gw * 0.18, base - wh * 0.72, gw * 0.2, wh * 0.36);
+    g.fillRect(gx + gw * 0.62, base - wh * 0.72, gw * 0.2, wh * 0.36);
+    g.fillStyle = 'rgba(169,207,224,0.55)';
+    g.fillRect(gx + gw * 0.18, base - wh * 0.72, gw * 0.08, wh * 0.36);
+    g.fillRect(gx + gw * 0.62, base - wh * 0.72, gw * 0.08, wh * 0.36);
+    g.fillStyle = 'rgba(20,35,51,0.12)';
+    g.fillRect(gx, base - wh * 0.18, gw, wh * 0.18);
+    sprites.set(key, c);
     return c;
   })();
 }
@@ -4893,6 +5350,7 @@ function propsAt(segment, zone, track, boards = null, out = []) {
     out.push({ kind, side: i % 14 === 0 ? -1 : 1, offset: 3 + Math.abs(hashNoise(i, 5)) * 6 });
   }
   if (zone.lamps && i % 11 === 0) out.push({ kind: 'lamp', side: i % 22 === 0 ? 1 : -1, offset: 0.8 });
+  if (zone.poles && i % POLE.step === 0) out.push({ kind: 'pole', side: POLE.side, offset: POLE.offset });
   return out;
 }
 
@@ -4917,7 +5375,7 @@ function distanceBoards(track) {
   return boards;
 }
 
-return { paintProp, propsAt, distanceBoards };
+return { POLE, paintProp, propsAt, distanceBoards };
 })();
 __m["src/infrastructure/rendering/sprite-atlas.js"] = (() => {
 const { assetUrl, embeddedJson } = __m["src/config/assets.js"];
@@ -5402,7 +5860,7 @@ return { createSkidMarks };
 __m["src/infrastructure/rendering/canvas-renderer.js"] = (() => {
 const { createCamera, createViewport, fogAt } = __m["src/infrastructure/rendering/projection.js"];
 const { paintBackdrop, sunPosition, mix } = __m["src/infrastructure/rendering/backdrop.js"];
-const { paintProp, propsAt, distanceBoards } = __m["src/infrastructure/rendering/props.js"];
+const { paintProp, propsAt, distanceBoards, POLE } = __m["src/infrastructure/rendering/props.js"];
 const { paintCar } = __m["src/infrastructure/rendering/car-painter.js"];
 const { createParticles, ParticleKind } = __m["src/infrastructure/rendering/particles.js"];
 const { createMinimap } = __m["src/infrastructure/rendering/minimap.js"];
@@ -5986,7 +6444,7 @@ function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = () => '#7
     });
   }
 
-  function paintProps(e, vp) {
+  function paintProps(e, vp, k) {
     const { zone, track } = view;
     if (e.zN < 8) return;
     const night = zone.time === 'noche';
@@ -5994,10 +6452,46 @@ function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = () => '#7
       const lateral = prop.side * (track.barrier + prop.offset);
       const x = e.xN + lateral * e.sN;
       if (x < -vp.width * 0.5 || x > vp.width * 1.5) continue;
-      withClip(e.clip, vp, e.yN, () => paintProp(ctx, prop.kind, x, e.yN, e.sN, {
-        side: prop.side, zone, night, seed: e.seg.index, turn: prop.turn, clock: view.clock
-      }));
+      withClip(e.clip, vp, e.yN, () => {
+        if (prop.kind === 'pole') paintWires(e, k, lateral);
+        paintProp(ctx, prop.kind, x, e.yN, e.sN, {
+          side: prop.side, zone, night, seed: e.seg.index, turn: prop.turn, clock: view.clock
+        });
+      });
     }
+  }
+
+  function paintFarPole(e, vp, k) {
+    const lateral = POLE.side * (view.track.barrier + POLE.offset);
+    const x = e.xN + lateral * e.sN;
+    if (x < -vp.width * 0.5 || x > vp.width * 1.5) return;
+    withClip(e.clip, vp, e.yN, () => {
+      paintWires(e, k, lateral);
+      paintProp(ctx, 'pole', x, e.yN, e.sN, { side: POLE.side, zone: view.zone, seed: e.seg.index });
+    });
+  }
+
+  /**
+   * Cables del poste de esta banda al siguiente, que está POLE.step bandas más lejos. Se lee la
+   * posición ya proyectada de esa banda: volver a pedir su utilería pisaría la lista que se
+   * está recorriendo. Si el siguiente poste cae fuera de lo dibujado, el cable no se tiende.
+   */
+  function paintWires(e, k, lateral) {
+    const f = bands[k + POLE.step];
+    if (!f?.ok || f.seg.gap) return;
+    const sag = POLE.sag * (e.sN + f.sN);
+    ctx.strokeStyle = 'rgba(28,31,58,0.75)';
+    ctx.lineWidth = Math.max(0.6, 0.035 * e.sN);
+    ctx.beginPath();
+    for (const a of POLE.wires) {
+      const x0 = e.xN + (lateral + a) * e.sN;
+      const y0 = e.yN - POLE.height * e.sN;
+      const x1 = f.xN + (lateral + a) * f.sN;
+      const y1 = f.yN - POLE.height * f.sN;
+      ctx.moveTo(x0, y0);
+      ctx.quadraticCurveTo((x0 + x1) / 2, (y0 + y1) / 2 + sag, x1, y1);
+    }
+    ctx.stroke();
   }
 
   // ───────────── autos y partículas ─────────────
@@ -6511,8 +7005,12 @@ function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = () => '#7
         // distancia siguen siendo menos de un píxel. Saltearla es la mitad del trabajo del cuadro.
         if (e.zN < DETAIL_NEAR || e.yN - e.yF >= view.detail) {
           paintWalls(e, vp);
-          paintProps(e, vp);
+          paintProps(e, vp, k);
           paintOverhead(e, vp, race);
+        } else if (view.zone.poles && e.seg.index % POLE.step === 0 && !e.seg.gap) {
+          // Los postes son lo único que se sigue viendo en una banda tan lejana: la fila que
+          // se pierde en el horizonte es la que da la profundidad del campo.
+          paintFarPole(e, vp, k);
         }
         ctx.globalAlpha = 1;
         for (const item of buckets[k].parts) paintParticle(item, vp);
@@ -6995,7 +7493,7 @@ const { createTireVoice } = __m["src/infrastructure/audio/tire-voice.js"];
  */
 const RIVAL_VOICES = 3;
 const SOUND_SPEED = 343;
-const SURFACE = Object.freeze({ 'distrito-torre': 'pasto', 'costa-rosa': 'grava', 'bajo-autopista': 'grava', 'anillo-neon': 'grava' });
+const SURFACE = Object.freeze({ 'distrito-torre': 'pasto', 'costa-rosa': 'grava', 'bajo-autopista': 'grava', 'anillo-neon': 'grava', 'valle-alto': 'pasto' });
 
 function createRecordedLayers(ctx, destination, bank) {
   const m = bank.manifest;
@@ -7320,7 +7818,7 @@ const ENGINES = Object.freeze({
 const RIVAL_VOICES = 3;
 
 /** Cuánto eco tiene cada zona: bajo el viaducto rebota todo, junto al mar casi nada. */
-const REVERB = Object.freeze({ 'bajo-autopista': 0.32, 'distrito-torre': 0.2, 'anillo-neon': 0.16, 'costa-rosa': 0.05 });
+const REVERB = Object.freeze({ 'bajo-autopista': 0.32, 'distrito-torre': 0.2, 'anillo-neon': 0.16, 'costa-rosa': 0.05, 'valle-alto': 0.04 });
 
 function softClip(amount) {
   const curve = new Float32Array(1024);

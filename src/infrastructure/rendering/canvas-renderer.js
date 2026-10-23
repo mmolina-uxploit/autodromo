@@ -1,6 +1,6 @@
 import { createCamera, createViewport, fogAt } from './projection.js';
 import { paintBackdrop, sunPosition, mix } from './backdrop.js';
-import { paintProp, propsAt, distanceBoards } from './props.js';
+import { paintProp, propsAt, distanceBoards, POLE } from './props.js';
 import { paintCar } from './car-painter.js';
 import { createParticles, ParticleKind } from './particles.js';
 import { createMinimap } from './minimap.js';
@@ -584,7 +584,7 @@ export function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = ()
     });
   }
 
-  function paintProps(e, vp) {
+  function paintProps(e, vp, k) {
     const { zone, track } = view;
     if (e.zN < 8) return;
     const night = zone.time === 'noche';
@@ -592,10 +592,46 @@ export function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = ()
       const lateral = prop.side * (track.barrier + prop.offset);
       const x = e.xN + lateral * e.sN;
       if (x < -vp.width * 0.5 || x > vp.width * 1.5) continue;
-      withClip(e.clip, vp, e.yN, () => paintProp(ctx, prop.kind, x, e.yN, e.sN, {
-        side: prop.side, zone, night, seed: e.seg.index, turn: prop.turn, clock: view.clock
-      }));
+      withClip(e.clip, vp, e.yN, () => {
+        if (prop.kind === 'pole') paintWires(e, k, lateral);
+        paintProp(ctx, prop.kind, x, e.yN, e.sN, {
+          side: prop.side, zone, night, seed: e.seg.index, turn: prop.turn, clock: view.clock
+        });
+      });
     }
+  }
+
+  function paintFarPole(e, vp, k) {
+    const lateral = POLE.side * (view.track.barrier + POLE.offset);
+    const x = e.xN + lateral * e.sN;
+    if (x < -vp.width * 0.5 || x > vp.width * 1.5) return;
+    withClip(e.clip, vp, e.yN, () => {
+      paintWires(e, k, lateral);
+      paintProp(ctx, 'pole', x, e.yN, e.sN, { side: POLE.side, zone: view.zone, seed: e.seg.index });
+    });
+  }
+
+  /**
+   * Cables del poste de esta banda al siguiente, que está POLE.step bandas más lejos. Se lee la
+   * posición ya proyectada de esa banda: volver a pedir su utilería pisaría la lista que se
+   * está recorriendo. Si el siguiente poste cae fuera de lo dibujado, el cable no se tiende.
+   */
+  function paintWires(e, k, lateral) {
+    const f = bands[k + POLE.step];
+    if (!f?.ok || f.seg.gap) return;
+    const sag = POLE.sag * (e.sN + f.sN);
+    ctx.strokeStyle = 'rgba(28,31,58,0.75)';
+    ctx.lineWidth = Math.max(0.6, 0.035 * e.sN);
+    ctx.beginPath();
+    for (const a of POLE.wires) {
+      const x0 = e.xN + (lateral + a) * e.sN;
+      const y0 = e.yN - POLE.height * e.sN;
+      const x1 = f.xN + (lateral + a) * f.sN;
+      const y1 = f.yN - POLE.height * f.sN;
+      ctx.moveTo(x0, y0);
+      ctx.quadraticCurveTo((x0 + x1) / 2, (y0 + y1) / 2 + sag, x1, y1);
+    }
+    ctx.stroke();
   }
 
   // ───────────── autos y partículas ─────────────
@@ -1109,8 +1145,12 @@ export function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = ()
         // distancia siguen siendo menos de un píxel. Saltearla es la mitad del trabajo del cuadro.
         if (e.zN < DETAIL_NEAR || e.yN - e.yF >= view.detail) {
           paintWalls(e, vp);
-          paintProps(e, vp);
+          paintProps(e, vp, k);
           paintOverhead(e, vp, race);
+        } else if (view.zone.poles && e.seg.index % POLE.step === 0 && !e.seg.gap) {
+          // Los postes son lo único que se sigue viendo en una banda tan lejana: la fila que
+          // se pierde en el horizonte es la que da la profundidad del campo.
+          paintFarPole(e, vp, k);
         }
         ctx.globalAlpha = 1;
         for (const item of buckets[k].parts) paintParticle(item, vp);

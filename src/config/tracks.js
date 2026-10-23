@@ -111,6 +111,29 @@ export const TRACKS = Object.freeze([
       straight(100, { adjust: true }),
       turn(70, 100, { hill: 4 })
     ]
+  },
+  {
+    id: 'valle-alto',
+    name: 'Valle Alto',
+    zone: 'valle-alto',
+    tagline: 'Fluida. Camino de campo entre arrozales, curvas largas al pie de la montaña y un salto sobre el arroyo.',
+    width: 11,
+    runoff: 9,
+    layout: [
+      straight(280, { adjust: true, boost: 0.5 }),
+      turn(160, 60, { hill: 5 }),
+      straight(200, { hill: -3 }),
+      turn(110, -75),
+      turn(140, 90, { hill: 6 }),
+      straight(260, { hill: -6, boost: 0.45 }),
+      jump({ ramp: 44, height: 3.2, gap: 26, landing: 38, landingHeight: 2 }),
+      turn(90, 110, { hill: 3 }),
+      straight(140),
+      turn(200, -45, { hill: -4 }),
+      turn(70, 100),
+      straight(180, { adjust: true }),
+      turn(150, 120, { hill: -1 })
+    ]
   }
 ].map(track => Object.freeze({ ...track, layout: Object.freeze(track.layout) })));
 

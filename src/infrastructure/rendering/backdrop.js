@@ -143,22 +143,46 @@ function paintMoon(ctx, zone, { width: W, horizon: hy, unit }, offset) {
  */
 function paintCloud(cloud, seed, width) {
   const rnd = seeded(seed);
-  const height = width * 0.42;
+  const height = width * (cloud.tall ? 0.82 : 0.42);
   const c = offscreen(width, height);
   const g = c.getContext('2d');
-  const base = height * 0.8;
+  const base = height * (cloud.tall ? 0.9 : 0.8);
   const puffs = [];
-  const n = 9 + Math.floor(rnd() * 6);
-  for (let i = 0; i < n; i++) {
-    const t = (i + 0.5) / n;
-    const dome = Math.sin(Math.PI * t);
-    const r = height * (0.14 + 0.24 * dome * (0.75 + 0.5 * rnd()));
-    puffs.push({ x: width * (0.1 + 0.8 * t + (rnd() - 0.5) * 0.05), y: base - r * (0.45 + 0.4 * rnd()), r });
-  }
-  for (let i = 0; i < n / 2; i++) {
-    const t = 0.3 + 0.4 * rnd();
-    const r = height * (0.16 + 0.12 * rnd());
-    puffs.push({ x: width * t, y: base - height * (0.32 + 0.18 * rnd()) - r * 0.3, r });
+  if (cloud.tall) {
+    // Cúmulo de mediodía: base ancha y chata, y encima una torre de bollos que se angosta y se
+    // corre un poco al subir. Los bollos grandes de arriba son los que le dan el volumen.
+    const n = 10 + Math.floor(rnd() * 5);
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.5) / n;
+      const r = width * (0.05 + 0.06 * Math.sin(Math.PI * t) * (0.7 + 0.6 * rnd()));
+      puffs.push({ x: width * (0.06 + 0.88 * t), y: base - r * (0.5 + 0.3 * rnd()), r });
+    }
+    const levels = 7 + Math.floor(rnd() * 3);
+    const lean = (rnd() - 0.5) * 0.18;
+    for (let j = 0; j < levels; j++) {
+      const u = (j + 1) / levels;
+      const spread = width * (0.42 - 0.26 * u);
+      const cx = width * (0.5 + lean * u);
+      const y = base - (height * 0.74) * u;
+      const per = 2 + Math.floor((1 - u) * 3 + rnd() * 1.5);
+      for (let k = 0; k < per; k++) {
+        const r = width * (0.08 + 0.1 * (1 - u * 0.5) * (0.7 + 0.6 * rnd()));
+        puffs.push({ x: cx + (per === 1 ? 0 : (k / (per - 1) - 0.5) * 2 * spread * 0.7) + (rnd() - 0.5) * r * 0.5, y: y + r * 0.35, r });
+      }
+    }
+  } else {
+    const n = 9 + Math.floor(rnd() * 6);
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.5) / n;
+      const dome = Math.sin(Math.PI * t);
+      const r = height * (0.14 + 0.24 * dome * (0.75 + 0.5 * rnd()));
+      puffs.push({ x: width * (0.1 + 0.8 * t + (rnd() - 0.5) * 0.05), y: base - r * (0.45 + 0.4 * rnd()), r });
+    }
+    for (let i = 0; i < n / 2; i++) {
+      const t = 0.3 + 0.4 * rnd();
+      const r = height * (0.16 + 0.12 * rnd());
+      puffs.push({ x: width * t, y: base - height * (0.32 + 0.18 * rnd()) - r * 0.3, r });
+    }
   }
   // Silueta: bollos de borde suave, cortados en la base.
   const silhouette = (target, color, dx = 0, dy = 0) => {
@@ -169,7 +193,7 @@ function paintCloud(cloud, seed, width) {
     for (const p of puffs) {
       const x = p.x + dx;
       const y = p.y + dy;
-      target.fillStyle = radial(target, x, y, p.r, [[0, color], [0.78, color], [1, rgba(color, 0)]]);
+      target.fillStyle = radial(target, x, y, p.r, [[0, color], [cloud.tall ? 0.9 : 0.78, color], [1, rgba(color, 0)]]);
       target.fillRect(x - p.r, y - p.r, p.r * 2, p.r * 2);
     }
     target.restore();
@@ -184,7 +208,17 @@ function paintCloud(cloud, seed, width) {
   g.globalAlpha = 0.85;
   g.fillRect(0, 0, width, height);
   g.globalAlpha = 1;
-  for (const p of puffs) {
+  if (cloud.tall) {
+    // Cada bollo con su media luna de sombra abajo a la derecha: es lo que lo hace coliflor.
+    // De abajo hacia arriba, así los de arriba tapan la sombra de los de abajo.
+    for (const p of [...puffs].sort((a, b) => b.y - a.y)) {
+      g.fillStyle = radial(g, p.x + p.r * 0.35, p.y + p.r * 0.4, p.r * 0.95, [[0, rgba(cloud.shade, 0.5)], [0.7, rgba(cloud.shade, 0.22)], [1, rgba(cloud.shade, 0)]]);
+      g.fillRect(p.x - p.r * 0.7, p.y - p.r * 0.6, p.r * 2, p.r * 2);
+      g.fillStyle = radial(g, p.x - p.r * 0.25, p.y - p.r * 0.35, p.r * 0.75, [[0, rgba(cloud.light, 0.95)], [0.6, rgba(cloud.light, 0.6)], [1, rgba(cloud.light, 0)]]);
+      g.fillRect(p.x - p.r, p.y - p.r * 1.1, p.r * 1.5, p.r * 1.5);
+    }
+  }
+  for (const p of cloud.tall ? [] : puffs) {
     const lx = p.x - p.r * 0.3;
     const ly = above ? p.y - p.r * 0.35 : p.y + p.r * 0.45;
     g.fillStyle = radial(g, lx, ly, p.r * 0.95, [[0, rgba(cloud.light, above ? 0.9 : 0.55)], [1, rgba(cloud.light, 0)]]);
@@ -214,7 +248,7 @@ function cloudSet(zone, unit, W) {
   const cloud = zone.atmosphere.cloud;
   return cached(sprites, `nubes:${zone.id}:${Math.round(W)}`, () => Array.from({ length: cloud.count }, (_, i) => {
     const depth = (i + 0.5) / cloud.count;
-    const width = W * (0.14 + 0.26 * depth * (0.8 + 0.4 * ((i * 37) % 10) / 10));
+    const width = W * (cloud.tall ? 0.15 + 0.2 * depth : 0.14 + 0.26 * depth) * (0.8 + 0.4 * ((i * 37) % 10) / 10);
     return { depth, sprite: paintCloud(cloud, i * 17 + zone.id.length, width), seed: i };
   }));
 }
@@ -226,8 +260,11 @@ export function paintClouds(ctx, zone, viewport, offset, clock = 0) {
   for (const { depth, sprite, seed } of cloudSet(zone, unit, W)) {
     const span = W + sprite.width;
     const x = wrap(((seed * 211) % 1000) / 1000 * span - offset * (0.03 + 0.05 * depth) + clock * (2 + 4 * depth), span) - sprite.width;
-    const y = hy * (0.58 - 0.5 * depth) - sprite.height * 0.5;
-    ctx.globalAlpha = 0.55 + 0.45 * depth;
+    // Los cúmulos altos apoyan la base cerca del horizonte y crecen hacia arriba.
+    const y = zone.atmosphere.cloud.tall
+      ? hy * (0.86 - 0.22 * depth) - sprite.height * 0.9
+      : hy * (0.58 - 0.5 * depth) - sprite.height * 0.5;
+    ctx.globalAlpha = zone.atmosphere.cloud.tall ? 0.88 + 0.12 * depth : 0.55 + 0.45 * depth;
     ctx.drawImage(sprite, x, y);
   }
   ctx.globalAlpha = 1;
@@ -374,6 +411,161 @@ function capsule(g, x, w, h, base, fill) {
   g.lineTo(x + w, base);
   g.closePath();
   g.fill();
+}
+
+/**
+ * Perfil de cresta que se repite cada W: suma de senos con frecuencias enteras, así la capa
+ * cierra sin costura al desplazarse. Devuelve alturas en [0, 1] por píxel.
+ */
+function ridgeProfile(W, seed, octaves) {
+  const rnd = seeded(seed);
+  const waves = octaves.map(([cycles, weight]) => ({ k: cycles, w: weight, phase: rnd() * Math.PI * 2 }));
+  const total = waves.reduce((a, b) => a + b.w, 0);
+  const h = new Float32Array(Math.ceil(W) + 1);
+  for (let x = 0; x < h.length; x++) {
+    let v = 0;
+    for (const { k, w, phase } of waves) v += w * Math.sin((x / W) * Math.PI * 2 * k + phase);
+    h[x] = 0.5 + 0.5 * v / total;
+  }
+  return h;
+}
+
+const rgbOf = hex => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+
+/**
+ * Cordón de montañas pintado como en un fondo de animé. La luz viene de la izquierda y se
+ * calcula por píxel: la pendiente de la cresta decide qué ladera mira al sol, y los espolones
+ * (aristas que bajan del pico abriéndose en abanico) parten cada ladera en caras claras y
+ * oscuras. Abajo la bruma lava el color. `height(x)` da la altura en píxeles sobre `base`.
+ */
+function paintRange(g, W, base, height, { lit, shade, haze, hazeAlpha, spurs = 0, dots }) {
+  const n = Math.ceil(W);
+  const hs = new Float32Array(n + 1);
+  let top = base;
+  for (let x = 0; x <= n; x++) { hs[x] = height(x); top = Math.min(top, base - hs[x]); }
+  // Pendiente de la cresta, suavizada: la forma grande de la ladera, sin el serrucho fino.
+  const span = Math.max(2, Math.round(W * 0.012));
+  const slope = new Float32Array(n + 1);
+  for (let x = 0; x <= n; x++) {
+    const a = hs[Math.max(0, x - span)];
+    const b = hs[Math.min(n, x + span)];
+    slope[x] = (b - a) / (2 * span);
+  }
+  const y0 = Math.max(0, Math.floor(top));
+  const rows = Math.ceil(base) - y0;
+  if (rows <= 0) return;
+  const img = g.createImageData(n, rows);
+  const L = rgbOf(lit), S = rgbOf(shade), Hz = rgbOf(haze);
+  const rnd = seeded(Math.round(W) + Math.round(base));
+  const ribs = [[7, 1, rnd() * 6.3], [13, 0.55, rnd() * 6.3], [23, 0.3, rnd() * 6.3]];
+  // Cumbre que manda en cada columna: la más alta a menos de un séptimo de pantalla.
+  // Se busca sobre la cresta suavizada: así solo cuentan los picos grandes y el abanico no
+  // salta de un diente a otro del serrucho.
+  const reach = Math.round(W / 7);
+  const wide = Math.max(3, Math.round(W * 0.03));
+  const smooth = new Float32Array(n + 1);
+  for (let x = 0; x <= n; x++) {
+    let acc = 0;
+    for (let d = -wide; d <= wide; d += 2) acc += hs[((x + d) % (n + 1) + n + 1) % (n + 1)];
+    smooth[x] = acc / (wide + 1);
+  }
+  const summit = new Int32Array(n + 1);
+  for (let x = 0; x <= n; x++) {
+    let best = x;
+    let score = smooth[x];
+    for (let d = -reach; d <= reach; d += 2) {
+      const xx = ((x + d) % (n + 1) + n + 1) % (n + 1);
+      const sc = smooth[xx] - Math.abs(d) * 0.05;
+      if (sc > score) { best = xx; score = sc; }
+    }
+    summit[x] = best;
+  }
+  for (let x = 0; x < n; x++) {
+    const h = hs[x];
+    if (h <= 0.5) continue;
+    const ridgeY = base - h;
+    const px = summit[x];
+    let dx = x - px;
+    if (dx > n / 2) dx -= n; else if (dx < -n / 2) dx += n;
+    const py = base - hs[px];
+    for (let y = Math.max(y0, Math.floor(ridgeY)); y < base; y++) {
+      const v = Math.min(1, (base - y) / h);  // 1 en la cresta, 0 al pie
+      // Espolones: rayos que bajan desde la cumbre y se abren en abanico, como el agua que
+      // fue tallando la ladera.
+      const ang = Math.atan2(dx, y - py + h * 0.15);
+      let rib = 0;
+      for (const [k, w, ph] of ribs) rib += w * Math.cos(ang * k + ph + Math.sin(dx * 0.02 + ph) * 0.4);
+      const face = clamp(slope[x] * 2.2, -1, 1) * (0.35 + 0.65 * v);
+      let light = 0.55 + 0.55 * face + spurs * 0.32 * rib * (0.3 + 0.7 * v);
+      light = clamp(light, 0, 1);
+      // Tres tonos con transición corta: se lee como celda pintada, no como degradé de foto.
+      const t = light < 0.42 ? light * 0.45 : light > 0.62 ? 0.75 + (light - 0.62) * 0.65 : 0.19 + (light - 0.42) * 2.8;
+      const hz = hazeAlpha * (1 - v) ** 1.6;
+      const i = ((y - y0) * n + x) * 4;
+      for (let c = 0; c < 3; c++) {
+        const col = S[c] + (L[c] - S[c]) * clamp(t, 0, 1);
+        img.data[i + c] = col + (Hz[c] - col) * hz;
+      }
+      // Borde de la cresta suavizado medio píxel.
+      img.data[i + 3] = y < ridgeY + 1 ? 255 * (1 - (ridgeY - Math.floor(ridgeY))) : 255;
+    }
+  }
+  const layer = offscreen(n, rows);
+  layer.getContext('2d').putImageData(img, 0, 0);
+  g.drawImage(layer, 0, y0);
+  // Monte: pocos manchones de árboles achatados, en la parte baja y siempre del mismo verde.
+  if (dots) {
+    const r = seeded(dots.seed);
+    for (let i = 0; i < dots.count; i++) {
+      const x = r() * n;
+      const h = hs[Math.floor(x)];
+      if (h < 4) continue;
+      const v = 0.05 + 0.4 * r() ** 1.8;
+      const y = base - h * v;
+      const s = dots.size * (0.6 + 0.9 * r());
+      g.fillStyle = rgba(mix(dots.color, haze, hazeAlpha * (1 - v) ** 1.6), 0.55);
+      g.beginPath();
+      g.ellipse(x, y, s * 2.2, s * 0.8, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+}
+
+/** Copa de árbol en el horizonte: bollos oscuros con la tapa iluminada. */
+function crown(g, x, base, r, dark, light) {
+  g.fillStyle = dark;
+  for (const [dx, dy, s] of [[-0.55, -0.55, 0.7], [0.5, -0.6, 0.75], [0, -1.05, 0.85], [-0.2, -0.3, 0.8], [0.35, -0.25, 0.7]]) {
+    g.beginPath();
+    g.arc(x + dx * r, base + dy * r, s * r, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.fillStyle = light;
+  for (const [dx, dy, s] of [[-0.35, -1.25, 0.45], [0.35, -0.9, 0.35], [-0.75, -0.75, 0.3]]) {
+    g.beginPath();
+    g.arc(x + dx * r, base + dy * r, s * r, 0, Math.PI * 2);
+    g.fill();
+  }
+}
+
+/** Casa baja de campo: pared clara, techo a dos aguas con alero oscuro. */
+function farmhouse(g, x, base, w, wall, roof) {
+  const h = w * 0.42;
+  g.fillStyle = wall;
+  g.fillRect(x, base - h, w, h);
+  g.fillStyle = rgba('#1c1f3a', 0.18);
+  g.fillRect(x + w * 0.62, base - h, w * 0.38, h);
+  g.fillStyle = roof;
+  g.beginPath();
+  g.moveTo(x - w * 0.08, base - h);
+  g.lineTo(x + w * 0.3, base - h - w * 0.3);
+  g.lineTo(x + w * 1.02, base - h - w * 0.3);
+  g.lineTo(x + w * 1.1, base - h);
+  g.closePath();
+  g.fill();
+  g.fillStyle = rgba('#1c1f3a', 0.35);
+  g.fillRect(x - w * 0.08, base - h, w * 1.18, Math.max(1, w * 0.04));
+  g.fillStyle = rgba('#1c1f3a', 0.55);
+  for (let i = 0; i < 2; i++) g.fillRect(x + w * (0.14 + i * 0.26), base - h * 0.62, w * 0.12, h * 0.3);
 }
 
 /** Capas de cada zona: { factor de paralaje, pintar(g, W, H, hy, unit) }. */
@@ -529,6 +721,64 @@ const SKYLINES = {
           const color = mix(colors[i % colors.length], haze, 0.12);
           tile(W, nx * W, x => tower(g, x, nw * W, nh * H, hy, color, false));
         });
+      } }
+    ];
+  },
+
+  valley(zone) {
+    const haze = zone.atmosphere.haze[0];
+    return [
+      // Cordillera lejana, casi celeste por la distancia.
+      { factor: 0.03, paint(g, W, H, hy) {
+        const p = ridgeProfile(W, 11, [[2, 1], [5, 0.45], [11, 0.18]]);
+        paintRange(g, W, hy, x => H * (0.06 + 0.07 * p[x % p.length]), {
+          lit: mix('#8db3cf', haze, 0.3), shade: '#5d7fa6', haze, hazeAlpha: 0.7, spurs: 0.5
+        });
+      } },
+      // La montaña: un pico grande con hombros y uno menor al costado.
+      { factor: 0.07, paint(g, W, H, hy) {
+        const p = ridgeProfile(W, 23, [[3, 0.5], [7, 0.3], [17, 0.12], [31, 0.05]]);
+        const peak = (x, cx, half, h) => {
+          const t = Math.abs(((x - cx + W * 1.5) % W) - W / 2) / half;
+          return t >= 1 ? 0 : h * (1 - t ** 1.35);
+        };
+        paintRange(g, W, hy, x => {
+          const xi = x % p.length;
+          const m = Math.max(peak(x, W * 0.52, W * 0.34, H * 0.24), peak(x, W * 0.14, W * 0.2, H * 0.13), peak(x, W * 0.86, W * 0.22, H * 0.15));
+          return m > 0 ? m * (0.88 + 0.24 * p[xi]) + H * 0.02 : H * 0.02 * p[xi];
+        }, {
+          lit: '#5fae52', shade: '#1f4f4c', haze, hazeAlpha: 0.6, spurs: 1,
+          dots: { seed: 5, count: 90, size: Math.max(1.2, H * 0.004), color: '#2d6a3e' }
+        });
+      } },
+      // Lomas cercanas, más verdes y con montes de árboles.
+      { factor: 0.16, paint(g, W, H, hy) {
+        const p = ridgeProfile(W, 41, [[4, 1], [9, 0.5], [19, 0.2]]);
+        paintRange(g, W, hy, x => H * (0.015 + 0.055 * p[x % p.length]), {
+          lit: '#74bd4c', shade: '#2f6e44', haze, hazeAlpha: 0.3, spurs: 0.4,
+          dots: { seed: 9, count: 60, size: Math.max(1.5, H * 0.006), color: '#2f7a3a' }
+        });
+      } },
+      // Arboleda y casas sobre el borde del campo.
+      { factor: 0.3, paint(g, W, H, hy) {
+        const rnd = seeded(61);
+        const base = hy + 1;
+        for (let i = 0; i < 18; i++) {
+          const x = rnd() * W;
+          const w = H * (0.022 + 0.016 * rnd());
+          const roof = ['#8a4f3e', '#4f5d7a', '#7a5a40', '#353a6e'][Math.floor(rnd() * 4)];
+          if (i % 3 === 0) tile(W, x, xx => farmhouse(g, xx, base, w, mix('#efebe4', haze, 0.15), roof));
+        }
+        for (let i = 0; i < 70; i++) {
+          const x = rnd() * W;
+          const r = H * (0.008 + 0.014 * rnd() ** 1.5);
+          tile(W, x, xx => crown(g, xx, base, r, mix('#2f6e3c', haze, 0.12), mix('#7cc35a', haze, 0.1)));
+        }
+      } },
+      // Franja de campo al pie: une el horizonte con el pasto de la pista.
+      { factor: 0, paint(g, W, H, hy) {
+        g.fillStyle = linear(g, 0, hy - H * 0.006, 0, hy + 1, [[0, rgba('#8fd05a', 0)], [1, rgba('#8fd05a', 0.7)]]);
+        g.fillRect(0, hy - H * 0.006, W, H * 0.006 + 1);
       } }
     ];
   },
