@@ -81,6 +81,7 @@ export const ZONES = Object.freeze([
       colors: [['#7ec44e', '#75ba47'], ['#a3d65c', '#98cc53'], ['#5a9c3e', '#529336'], ['#bcd56a', '#b1cb5f'], ['#d8bf62', '#ccb257'], ['#86c25a', '#7cb852']],
       levee: '#b5de82',
       patches: ['#5d636c', '#7a808a'],
+      wear: { crack: 'rgba(28,31,58,0.45)', stain: 'rgba(28,31,58,0.14)' },
       tufts: { dark: '#3f7f3a', light: '#a8dc6c', flowers: ['#fff4dc', '#ffd36a'] }
     },
     props: ['oak', 'oak', 'house'], lamps: false, poles: true, signs: 'rural',

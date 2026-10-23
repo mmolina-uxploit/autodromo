@@ -2,7 +2,7 @@ import { createCamera, createViewport, fogAt } from './projection.js';
 import { paintBackdrop, sunPosition, mix } from './backdrop.js';
 import { paintProp, propsAt, distanceBoards, POLE } from './props.js';
 import { paintCar } from './car-painter.js';
-import { paintFields, paintTufts, paintPatches } from './countryside.js';
+import { paintFields, paintTufts, paintPatches, paintWear } from './countryside.js';
 import { createParticles, ParticleKind } from './particles.js';
 import { createMinimap } from './minimap.js';
 import { createSkidMarks } from './skid-marks.js';
@@ -297,7 +297,10 @@ export function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = ()
     strip(e, hw, hw + rw, zone.road.rumble[band]);
     const asphalt = seg.isStartLine ? START_LINE_COLOR : seg.ramp ? rampStyles[band][e.k] : asphaltStyles[band][e.k];
     quad(e.xN - hw * e.sN, e.xN + hw * e.sN, e.yN, e.xF - hw * e.sF, e.xF + hw * e.sF, e.yF, asphalt);
-    if (zone.fields && !thin && e.k < N * 0.35 && !seg.isStartLine && !seg.ramp) paintPatches(ctx, e, hw, zone.fields.patches);
+    if (zone.fields && !thin && e.k < N * 0.35 && !seg.isStartLine && !seg.ramp) {
+      paintPatches(ctx, e, hw, zone.fields.patches);
+      if (e.yN - e.yF > 3) paintWear(ctx, e, hw, zone.fields.wear);
+    }
 
     if (seg.isStartLine) {
       const cols = 8;

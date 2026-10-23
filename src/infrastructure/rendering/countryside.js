@@ -166,3 +166,60 @@ export function paintPatches(ctx, e, halfWidth, colors) {
   ctx.closePath();
   ctx.fill();
 }
+
+/**
+ * Desgaste fino del asfalto cerca de la cámara: grietas que serpentean a lo largo o cruzan el
+ * carril, y manchas de aceite donde pisan las ruedas. Pocas por banda: tienen que leerse como
+ * camino viejo, no como textura repetida.
+ */
+export function paintWear(ctx, e, halfWidth, colors) {
+  const i = e.seg.index;
+  const at = (lat, t) => [e.xN + (e.xF - e.xN) * t + lat * (e.sN + (e.sF - e.sN) * t), e.yN + (e.yF - e.yN) * t];
+  // Grieta a lo largo: sigue unos segmentos seguidos con un leve zigzag.
+  const run = Math.floor(i / 6);
+  if (unit(run, 113) > 0.6) {
+    // El desvío se fija en cada borde de segmento, así la grieta sigue sin quiebre de una banda
+    // a la siguiente.
+    const lat = (unit(run, 127) - 0.5) * halfWidth * 1.6;
+    const edge = k => lat + (unit(k, 131) - 0.5) * 0.3;
+    const [x0, y0] = at(edge(i), 0);
+    const [x1, y1] = at((edge(i) + edge(i + 1)) / 2 + (unit(i, 133) - 0.5) * 0.18, 0.5);
+    const [x2, y2] = at(edge(i + 1), 1);
+    ctx.strokeStyle = colors.crack;
+    ctx.lineWidth = Math.max(0.7, 0.018 * e.sN);
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+  // Grieta que cruza el carril, con una rama.
+  if (unit(i, 137) > 0.9) {
+    const a = (unit(i, 139) - 0.5) * halfWidth;
+    const b = a + halfWidth * (0.3 + 0.4 * unit(i, 149));
+    const [x0, y0] = at(a, 0.3);
+    const [x1, y1] = at((a + b) / 2, 0.55);
+    const [x2, y2] = at(b, 0.4);
+    const [x3, y3] = at((a + b) / 2 + 0.4, 0.9);
+    ctx.strokeStyle = colors.crack;
+    ctx.lineWidth = Math.max(0.7, 0.016 * e.sN);
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x3, y3);
+    ctx.stroke();
+  }
+  // Mancha de aceite en la huella de una rueda.
+  if (unit(i, 151) > 0.86) {
+    const lat = (unit(i, 157) > 0.5 ? 1 : -1) * halfWidth * 0.38 + (unit(i, 163) - 0.5) * 0.6;
+    const [x, y] = at(lat, 0.5);
+    const w = (0.5 + 0.7 * unit(i, 167)) * (e.sN + e.sF) / 2;
+    const h = Math.max(1, (e.yN - e.yF) * 0.45);
+    ctx.fillStyle = colors.stain;
+    ctx.beginPath();
+    ctx.ellipse(x, y, w, h, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}

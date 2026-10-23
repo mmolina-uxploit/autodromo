@@ -195,25 +195,38 @@ function paintCloud(cloud, seed, width) {
   const base = height * (cloud.tall ? 0.9 : 0.8);
   const puffs = [];
   if (cloud.tall) {
-    // Cúmulo de mediodía: base ancha y chata, y encima una torre de bollos que se angosta y se
-    // corre un poco al subir. Los bollos grandes de arriba son los que le dan el volumen.
-    const n = 10 + Math.floor(rnd() * 5);
+    // Cúmulo de mediodía en tres tamaños, como se pinta: una base chata de bollos desparejos,
+    // pocos lóbulos grandes apilados que se angostan y se corren al subir, y bollitos chicos
+    // asomando por el borde de arriba de cada lóbulo. La jerarquía de tamaños es lo que evita
+    // que se vea como una grilla de bollos iguales.
+    const n = 8 + Math.floor(rnd() * 5);
     for (let i = 0; i < n; i++) {
       const t = (i + 0.5) / n;
-      const r = width * (0.05 + 0.06 * Math.sin(Math.PI * t) * (0.7 + 0.6 * rnd()));
-      puffs.push({ x: width * (0.06 + 0.88 * t), y: base - r * (0.5 + 0.3 * rnd()), r });
+      const r = width * (0.035 + 0.06 * Math.sin(Math.PI * t) * (0.45 + 1.1 * rnd() ** 1.5));
+      puffs.push({ x: width * (0.06 + 0.88 * t + (rnd() - 0.5) * 0.04), y: base - r * (0.45 + 0.35 * rnd()), r });
     }
-    const levels = 7 + Math.floor(rnd() * 3);
-    const lean = (rnd() - 0.5) * 0.18;
-    for (let j = 0; j < levels; j++) {
-      const u = (j + 1) / levels;
-      const spread = width * (0.42 - 0.26 * u);
-      const cx = width * (0.5 + lean * u);
-      const y = base - (height * 0.74) * u;
-      const per = 2 + Math.floor((1 - u) * 3 + rnd() * 1.5);
-      for (let k = 0; k < per; k++) {
-        const r = width * (0.08 + 0.1 * (1 - u * 0.5) * (0.7 + 0.6 * rnd()));
-        puffs.push({ x: cx + (per === 1 ? 0 : (k / (per - 1) - 0.5) * 2 * spread * 0.7) + (rnd() - 0.5) * r * 0.5, y: y + r * 0.35, r });
+    const lean = (rnd() - 0.5) * 0.22;
+    const count = 4 + Math.floor(rnd() * 3);
+    const lobes = [];
+    for (let j = 0; j < count; j++) {
+      const u = j / (count - 1);
+      const r = width * (0.21 - 0.11 * u) * (0.75 + 0.5 * rnd());
+      const x = width * (0.5 + lean * u + (rnd() - 0.5) * 0.34 * (1 - u * 0.6));
+      const y = base - height * 0.7 * u + r * 0.25;
+      lobes.push({ x: clamp(x, r, width - r), y: Math.max(r, y), r });
+    }
+    puffs.push(...lobes);
+    for (const lobe of lobes) {
+      const m = 4 + Math.floor(rnd() * 5);
+      for (let k = 0; k < m; k++) {
+        // Sobre el arco de arriba del lóbulo, más del lado del sol.
+        const ang = -Math.PI * (0.08 + 0.84 * rnd() ** 1.3);
+        const r = lobe.r * (0.16 + 0.32 * rnd() ** 1.6);
+        const d = lobe.r - r * 0.55;
+        const x = lobe.x + Math.cos(ang) * d;
+        const y = lobe.y + Math.sin(ang) * d;
+        if (y - r < 1 || x - r < 1 || x + r > width - 1) continue;
+        puffs.push({ x, y, r });
       }
     }
     return paintTallCloud(cloud, puffs, width, height, base);
@@ -880,7 +893,7 @@ const SKYLINES = {
           const m = Math.max(peak(x, W * 0.52, W * 0.34, H * 0.24), peak(x, W * 0.14, W * 0.2, H * 0.13), peak(x, W * 0.86, W * 0.22, H * 0.15));
           return m > 0 ? m * (0.88 + 0.24 * p[xi]) + H * 0.02 : H * 0.02 * p[xi];
         }, {
-          lit: '#5fae52', shade: '#1f4f4c', haze, hazeAlpha: 0.6, spurs: 0.65,
+          lit: '#5fae52', shade: '#1f4f4c', haze, hazeAlpha: 0.6, spurs: 0.24,
           forest: { seed: 5, density: 6, size: Math.max(1.2, H * 0.0034) }
         });
       } },
@@ -888,7 +901,7 @@ const SKYLINES = {
       { factor: 0.16, grain: 1, paint(g, W, H, hy) {
         const p = ridgeProfile(W, 41, [[4, 1], [9, 0.5], [19, 0.2]]);
         paintRange(g, W, hy, x => H * (0.015 + 0.055 * p[x % p.length]), {
-          lit: '#74bd4c', shade: '#2f6e44', haze, hazeAlpha: 0.3, spurs: 0.4,
+          lit: '#74bd4c', shade: '#2f6e44', haze, hazeAlpha: 0.3, spurs: 0.25,
           forest: { seed: 9, density: 5, size: Math.max(1.4, H * 0.0045) }
         });
       } },

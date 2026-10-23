@@ -794,6 +794,7 @@ const ZONES = Object.freeze([
       colors: [['#7ec44e', '#75ba47'], ['#a3d65c', '#98cc53'], ['#5a9c3e', '#529336'], ['#bcd56a', '#b1cb5f'], ['#d8bf62', '#ccb257'], ['#86c25a', '#7cb852']],
       levee: '#b5de82',
       patches: ['#5d636c', '#7a808a'],
+      wear: { crack: 'rgba(28,31,58,0.45)', stain: 'rgba(28,31,58,0.14)' },
       tufts: { dark: '#3f7f3a', light: '#a8dc6c', flowers: ['#fff4dc', '#ffd36a'] }
     },
     props: ['oak', 'oak', 'house'], lamps: false, poles: true, signs: 'rural',
@@ -3943,25 +3944,38 @@ function paintCloud(cloud, seed, width) {
   const base = height * (cloud.tall ? 0.9 : 0.8);
   const puffs = [];
   if (cloud.tall) {
-    // Cúmulo de mediodía: base ancha y chata, y encima una torre de bollos que se angosta y se
-    // corre un poco al subir. Los bollos grandes de arriba son los que le dan el volumen.
-    const n = 10 + Math.floor(rnd() * 5);
+    // Cúmulo de mediodía en tres tamaños, como se pinta: una base chata de bollos desparejos,
+    // pocos lóbulos grandes apilados que se angostan y se corren al subir, y bollitos chicos
+    // asomando por el borde de arriba de cada lóbulo. La jerarquía de tamaños es lo que evita
+    // que se vea como una grilla de bollos iguales.
+    const n = 8 + Math.floor(rnd() * 5);
     for (let i = 0; i < n; i++) {
       const t = (i + 0.5) / n;
-      const r = width * (0.05 + 0.06 * Math.sin(Math.PI * t) * (0.7 + 0.6 * rnd()));
-      puffs.push({ x: width * (0.06 + 0.88 * t), y: base - r * (0.5 + 0.3 * rnd()), r });
+      const r = width * (0.035 + 0.06 * Math.sin(Math.PI * t) * (0.45 + 1.1 * rnd() ** 1.5));
+      puffs.push({ x: width * (0.06 + 0.88 * t + (rnd() - 0.5) * 0.04), y: base - r * (0.45 + 0.35 * rnd()), r });
     }
-    const levels = 7 + Math.floor(rnd() * 3);
-    const lean = (rnd() - 0.5) * 0.18;
-    for (let j = 0; j < levels; j++) {
-      const u = (j + 1) / levels;
-      const spread = width * (0.42 - 0.26 * u);
-      const cx = width * (0.5 + lean * u);
-      const y = base - (height * 0.74) * u;
-      const per = 2 + Math.floor((1 - u) * 3 + rnd() * 1.5);
-      for (let k = 0; k < per; k++) {
-        const r = width * (0.08 + 0.1 * (1 - u * 0.5) * (0.7 + 0.6 * rnd()));
-        puffs.push({ x: cx + (per === 1 ? 0 : (k / (per - 1) - 0.5) * 2 * spread * 0.7) + (rnd() - 0.5) * r * 0.5, y: y + r * 0.35, r });
+    const lean = (rnd() - 0.5) * 0.22;
+    const count = 4 + Math.floor(rnd() * 3);
+    const lobes = [];
+    for (let j = 0; j < count; j++) {
+      const u = j / (count - 1);
+      const r = width * (0.21 - 0.11 * u) * (0.75 + 0.5 * rnd());
+      const x = width * (0.5 + lean * u + (rnd() - 0.5) * 0.34 * (1 - u * 0.6));
+      const y = base - height * 0.7 * u + r * 0.25;
+      lobes.push({ x: clamp(x, r, width - r), y: Math.max(r, y), r });
+    }
+    puffs.push(...lobes);
+    for (const lobe of lobes) {
+      const m = 4 + Math.floor(rnd() * 5);
+      for (let k = 0; k < m; k++) {
+        // Sobre el arco de arriba del lóbulo, más del lado del sol.
+        const ang = -Math.PI * (0.08 + 0.84 * rnd() ** 1.3);
+        const r = lobe.r * (0.16 + 0.32 * rnd() ** 1.6);
+        const d = lobe.r - r * 0.55;
+        const x = lobe.x + Math.cos(ang) * d;
+        const y = lobe.y + Math.sin(ang) * d;
+        if (y - r < 1 || x - r < 1 || x + r > width - 1) continue;
+        puffs.push({ x, y, r });
       }
     }
     return paintTallCloud(cloud, puffs, width, height, base);
@@ -4628,7 +4642,7 @@ const SKYLINES = {
           const m = Math.max(peak(x, W * 0.52, W * 0.34, H * 0.24), peak(x, W * 0.14, W * 0.2, H * 0.13), peak(x, W * 0.86, W * 0.22, H * 0.15));
           return m > 0 ? m * (0.88 + 0.24 * p[xi]) + H * 0.02 : H * 0.02 * p[xi];
         }, {
-          lit: '#5fae52', shade: '#1f4f4c', haze, hazeAlpha: 0.6, spurs: 0.65,
+          lit: '#5fae52', shade: '#1f4f4c', haze, hazeAlpha: 0.6, spurs: 0.24,
           forest: { seed: 5, density: 6, size: Math.max(1.2, H * 0.0034) }
         });
       } },
@@ -4636,7 +4650,7 @@ const SKYLINES = {
       { factor: 0.16, grain: 1, paint(g, W, H, hy) {
         const p = ridgeProfile(W, 41, [[4, 1], [9, 0.5], [19, 0.2]]);
         paintRange(g, W, hy, x => H * (0.015 + 0.055 * p[x % p.length]), {
-          lit: '#74bd4c', shade: '#2f6e44', haze, hazeAlpha: 0.3, spurs: 0.4,
+          lit: '#74bd4c', shade: '#2f6e44', haze, hazeAlpha: 0.3, spurs: 0.25,
           forest: { seed: 9, density: 5, size: Math.max(1.4, H * 0.0045) }
         });
       } },
@@ -5982,7 +5996,64 @@ function paintPatches(ctx, e, halfWidth, colors) {
   ctx.fill();
 }
 
-return { paintFields, paintTufts, paintPatches };
+/**
+ * Desgaste fino del asfalto cerca de la cámara: grietas que serpentean a lo largo o cruzan el
+ * carril, y manchas de aceite donde pisan las ruedas. Pocas por banda: tienen que leerse como
+ * camino viejo, no como textura repetida.
+ */
+function paintWear(ctx, e, halfWidth, colors) {
+  const i = e.seg.index;
+  const at = (lat, t) => [e.xN + (e.xF - e.xN) * t + lat * (e.sN + (e.sF - e.sN) * t), e.yN + (e.yF - e.yN) * t];
+  // Grieta a lo largo: sigue unos segmentos seguidos con un leve zigzag.
+  const run = Math.floor(i / 6);
+  if (unit(run, 113) > 0.6) {
+    // El desvío se fija en cada borde de segmento, así la grieta sigue sin quiebre de una banda
+    // a la siguiente.
+    const lat = (unit(run, 127) - 0.5) * halfWidth * 1.6;
+    const edge = k => lat + (unit(k, 131) - 0.5) * 0.3;
+    const [x0, y0] = at(edge(i), 0);
+    const [x1, y1] = at((edge(i) + edge(i + 1)) / 2 + (unit(i, 133) - 0.5) * 0.18, 0.5);
+    const [x2, y2] = at(edge(i + 1), 1);
+    ctx.strokeStyle = colors.crack;
+    ctx.lineWidth = Math.max(0.7, 0.018 * e.sN);
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+  // Grieta que cruza el carril, con una rama.
+  if (unit(i, 137) > 0.9) {
+    const a = (unit(i, 139) - 0.5) * halfWidth;
+    const b = a + halfWidth * (0.3 + 0.4 * unit(i, 149));
+    const [x0, y0] = at(a, 0.3);
+    const [x1, y1] = at((a + b) / 2, 0.55);
+    const [x2, y2] = at(b, 0.4);
+    const [x3, y3] = at((a + b) / 2 + 0.4, 0.9);
+    ctx.strokeStyle = colors.crack;
+    ctx.lineWidth = Math.max(0.7, 0.016 * e.sN);
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x3, y3);
+    ctx.stroke();
+  }
+  // Mancha de aceite en la huella de una rueda.
+  if (unit(i, 151) > 0.86) {
+    const lat = (unit(i, 157) > 0.5 ? 1 : -1) * halfWidth * 0.38 + (unit(i, 163) - 0.5) * 0.6;
+    const [x, y] = at(lat, 0.5);
+    const w = (0.5 + 0.7 * unit(i, 167)) * (e.sN + e.sF) / 2;
+    const h = Math.max(1, (e.yN - e.yF) * 0.45);
+    ctx.fillStyle = colors.stain;
+    ctx.beginPath();
+    ctx.ellipse(x, y, w, h, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+return { paintFields, paintTufts, paintPatches, paintWear };
 })();
 __m["src/infrastructure/rendering/particles.js"] = (() => {
 /**
@@ -6168,7 +6239,7 @@ const { createCamera, createViewport, fogAt } = __m["src/infrastructure/renderin
 const { paintBackdrop, sunPosition, mix } = __m["src/infrastructure/rendering/backdrop.js"];
 const { paintProp, propsAt, distanceBoards, POLE } = __m["src/infrastructure/rendering/props.js"];
 const { paintCar } = __m["src/infrastructure/rendering/car-painter.js"];
-const { paintFields, paintTufts, paintPatches } = __m["src/infrastructure/rendering/countryside.js"];
+const { paintFields, paintTufts, paintPatches, paintWear } = __m["src/infrastructure/rendering/countryside.js"];
 const { createParticles, ParticleKind } = __m["src/infrastructure/rendering/particles.js"];
 const { createMinimap } = __m["src/infrastructure/rendering/minimap.js"];
 const { createSkidMarks } = __m["src/infrastructure/rendering/skid-marks.js"];
@@ -6463,7 +6534,10 @@ function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = () => '#7
     strip(e, hw, hw + rw, zone.road.rumble[band]);
     const asphalt = seg.isStartLine ? START_LINE_COLOR : seg.ramp ? rampStyles[band][e.k] : asphaltStyles[band][e.k];
     quad(e.xN - hw * e.sN, e.xN + hw * e.sN, e.yN, e.xF - hw * e.sF, e.xF + hw * e.sF, e.yF, asphalt);
-    if (zone.fields && !thin && e.k < N * 0.35 && !seg.isStartLine && !seg.ramp) paintPatches(ctx, e, hw, zone.fields.patches);
+    if (zone.fields && !thin && e.k < N * 0.35 && !seg.isStartLine && !seg.ramp) {
+      paintPatches(ctx, e, hw, zone.fields.patches);
+      if (e.yN - e.yF > 3) paintWear(ctx, e, hw, zone.fields.wear);
+    }
 
     if (seg.isStartLine) {
       const cols = 8;
