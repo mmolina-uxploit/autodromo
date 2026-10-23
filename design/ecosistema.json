@@ -659,6 +659,18 @@
     "puntos": "por modelo, inclinación y giro: contacto de cada rueda, pivote de la carrocería, toberas traseras y bajas, escapes; en píxeles del cuadro lógico",
     "recorte": "cada capa se recorta a su contenido; ox/oy ubican el recorte dentro del cuadro lógico",
     "ancho_hoja_max": 4096,
-    "angulo_suavizado_grados": 48
+    "angulo_suavizado_grados": 48,
+    "fases_rueda": {
+      "uso": "ruedas y frente se dibujan en fases a lo largo de un período de llanta (360° / rayos); el juego elige la fase por distancia recorrida y funde con la rueda barrida cuando la cadencia de fases supera lo que se puede ver girar",
+      "pasos": 3,
+      "sufijos": [
+        "",
+        "_f1",
+        "_f2"
+      ],
+      "barrido": "_barrido",
+      "subpasos_barrido": 6,
+      "tacos_por_rayo": 4
+    }
   }
 }

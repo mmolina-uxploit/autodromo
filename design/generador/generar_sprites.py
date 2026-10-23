@@ -11,6 +11,7 @@ Requiere: numpy, scipy, pillow
 Salida:   ../../assets/sprites/*.png y atlas.json, ../hojas-modelo/*.png,
           ../tablero-ecosistema.png
 """
+import hashlib
 import json
 import math
 import os
@@ -28,6 +29,7 @@ with open(os.path.join(RAIZ, 'ecosistema.json'), encoding='utf-8') as fh:
 RND = ECO['render']
 SPR = ECO['contrato_sprites']
 SS = SPR['supermuestreo']
+FASES = SPR['fases_rueda']
 
 FUENTES_B = ['/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf',
              '/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf',
@@ -186,9 +188,19 @@ def banda(m, A, B, mat):
         m.poli([A[i], A[(i + 1) % n], B[(i + 1) % n], B[i]], mat)
 
 
+# Cuánto rodó la rueda hacia adelante, en fracción del período de la llanta (360° / rayos).
+# La llanta es simétrica cada período, así que 0 y 1 dan la misma imagen y las fases cierran
+# sin costura. La trompa mira a +z: rodar hacia adelante baja el ángulo en aro() y acá.
+GIRO_RUEDA = 0.0
+# Tacos por rayo. Con tres fases por período cada paso avanza k/3 de taco; solo k ≡ 1 (mód 3)
+# hace que el taco se vea avanzar un tercio y no retroceder otro tercio.
+TACOS_POR_RAYO = SPR['fases_rueda']['tacos_por_rayo']
+
+
 def rueda(m, x_in, x_out, cz, r, r_llanta, rayos=5, n=24):
-    """Neumático + llanta de plato profundo. El lado exterior mira a +x."""
+    """Neumático con tacos + llanta de plato profundo. El lado exterior mira a +x."""
     cy = r
+    fase = 2 * math.pi * GIRO_RUEDA / rayos
     banda(m, aro(x_in, cy, cz, r, n), aro(x_out, cy, cz, r, n), 'neumatico')
     m.poli(aro(x_in, cy, cz, r, n), 'neumatico')
     banda(m, aro(x_out, cy, cz, r, n), aro(x_out, cy, cz, r_llanta, n), 'neumatico')
@@ -196,9 +208,19 @@ def rueda(m, x_in, x_out, cz, r, r_llanta, rayos=5, n=24):
     banda(m, aro(xl, cy, cz, r_llanta, n), aro(xl, cy, cz, labio, n), 'llanta')
     banda(m, aro(xl, cy, cz, labio, n), aro(xd, cy, cz, labio, n), 'llanta_int')
     m.poli(aro(xd, cy, cz, labio, n), 'llanta_int')
+    # Tacos al ras de la banda: cambian el material, no la silueta, para que el contorno de la
+    # rueda no titile al girar. Desde atrás son lo único que delata el giro.
+    tacos = TACOS_POR_RAYO * rayos
+    medio = np.array([(x_in + x_out) / 2, cy, cz])
+    for s in range(tacos):
+        ang = 2 * math.pi * s / tacos - fase
+        er = np.array([0, math.sin(ang), math.cos(ang)])
+        et = np.array([0, math.cos(ang), -math.sin(ang)])
+        caja(m, medio + (r + .0025) * er, ((x_out - x_in) / 2 - .012, .0025, math.pi * r / tacos * .45),
+             'trim', ejes=(EX, er, et))
     cubo = 0.055
     for s in range(rayos):
-        ang = 2 * math.pi * s / rayos + 0.35
+        ang = 2 * math.pi * s / rayos + 0.35 - fase
         er = np.array([0, math.sin(ang), math.cos(ang)])
         et = np.array([0, math.cos(ang), -math.sin(ang)])
         rc, hl = (cubo + labio) / 2, (labio - cubo) / 2
@@ -366,7 +388,7 @@ def modelo_cuna():
     traseras = toberas(cen, zr, (-.62, .62), .17)
     m.sumar(cen).sumar(der).sumar(der.espejo())
     return m, rd.sumar(rd.espejo()), meta_puntos(contactos, traseras, [(x, .25, zr - .14) for x in (-.26, -.12, .12, .26)],
-                                                 .92, 1.9, dict(huella=(-1.12, 1.12, -2.25, 2.30)))
+                                                 .92, 1.9, dict(huella=(-1.12, 1.12, -2.25, 2.30), rayos=5))
 
 
 def modelo_saeta():
@@ -407,7 +429,7 @@ def modelo_saeta():
     traseras = toberas(cen, zr, (-.56, .56), .2)
     m.sumar(cen).sumar(der).sumar(der.espejo())
     return m, rd.sumar(rd.espejo()), meta_puntos(contactos, traseras, [(x, .22, zr - .12) for x in (-.18, .18)],
-                                                 .88, 2.0, dict(huella=(-1.05, 1.05, -2.35, 2.35)))
+                                                 .88, 2.0, dict(huella=(-1.05, 1.05, -2.35, 2.35), rayos=6))
 
 
 def modelo_bloque():
@@ -445,7 +467,7 @@ def modelo_bloque():
     caja(cen, (0, .30, zf + .03), (.90, .07, .05), 'trim')
     traseras = toberas(cen, zr, (-.5, .5), .2)
     m.sumar(cen).sumar(der).sumar(der.espejo())
-    return m, rd.sumar(rd.espejo()), meta_puntos(contactos, traseras, [], .84, 2.0, dict(huella=(-1.02, 1.02, -2.22, 2.32)))
+    return m, rd.sumar(rd.espejo()), meta_puntos(contactos, traseras, [], .84, 2.0, dict(huella=(-1.02, 1.02, -2.22, 2.32), rayos=5))
 
 
 def modelo_volta():
@@ -488,7 +510,7 @@ def modelo_volta():
     traseras = toberas(cen, zr, (-.6, .6), .13)
     m.sumar(cen).sumar(der).sumar(der.espejo())
     return m, rd.sumar(rd.espejo()), meta_puntos(contactos, [(0, .36, zr - .06)] + traseras, [], .9, 1.9,
-                                                 dict(huella=(-1.06, 1.06, -2.20, 2.22)))
+                                                 dict(huella=(-1.06, 1.06, -2.20, 2.22), rayos=10))
 
 
 def toberas(cen, zr, xs, y):
@@ -788,18 +810,37 @@ def empaquetar(items, ancho):
     orden = sorted(items, key=lambda it: -it[1].height)
     x = y = alto_fila = 0
     lugares = {}
+    # Recortes idénticos comparten lugar en la hoja: las ruedas no usan materiales de librea,
+    # así que salen iguales en todas las libreas del modelo.
+    vistos = {}
     for clave, img, ox, oy in orden:
+        firma = (img.size, hashlib.blake2b(img.tobytes(), digest_size=16).digest())
+        if firma in vistos:
+            lugares[clave] = (*vistos[firma], img, ox, oy, False)
+            continue
         if x + img.width > ancho:
             x, y, alto_fila = 0, y + alto_fila + 2, 0
-        lugares[clave] = (x, y, img, ox, oy)
+        lugares[clave] = (x, y, img, ox, oy, True)
+        vistos[firma] = (x, y)
         x += img.width + 2
         alto_fila = max(alto_fila, img.height)
     hoja = Image.new('RGBA', (ancho, y + alto_fila), (0, 0, 0, 0))
     cuadros = {}
-    for clave, (x, y, img, ox, oy) in lugares.items():
-        hoja.paste(img, (x, y))
+    for clave, (x, y, img, ox, oy, nueva) in lugares.items():
+        if nueva:
+            hoja.paste(img, (x, y))
         cuadros[clave] = {'x': x, 'y': y, 'w': img.width, 'h': img.height, 'ox': ox, 'oy': oy}
     return hoja, cuadros
+
+
+def promedio_rgba(imgs):
+    """Rueda barrida: promedio de las subfases con alfa premultiplicado, para que los rayos se
+    fundan en un disco sin oscurecer el borde."""
+    A = np.stack([np.asarray(i, float) for i in imgs]) / 255
+    a = A[..., 3:4]
+    rgb = (A[..., :3] * a).sum(0) / np.maximum(a.sum(0), 1e-6)
+    out = np.dstack([rgb, a.mean(0)])
+    return Image.fromarray((out * 255 + .5).astype(np.uint8), 'RGBA')
 
 
 def sombra_rgba(som):
@@ -819,6 +860,13 @@ def solo_diferencias(base, otra):
     out = np.asarray(otra).copy()
     out[..., 3] = np.where(cambia, out[..., 3], 0)
     return Image.fromarray(out, 'RGBA')
+
+
+def adelante_de(ruedas, mascara):
+    """La parte de las ruedas que tapa a la carrocería."""
+    arr = np.asarray(ruedas).copy()
+    arr[..., 3] = (arr[..., 3] * mascara).astype(np.uint8)
+    return Image.fromarray(arr, 'RGBA')
 
 
 def generar_sprites(modelos, seleccion=None):
@@ -872,6 +920,7 @@ def generar_sprites(modelos, seleccion=None):
         'inclinaciones_grados': incl,
         'nomenclatura': SPR['nomenclatura'],
         'capas': list(SPR['capas']),
+        'fases_rueda': {k: FASES[k] for k in ('pasos', 'sufijos', 'barrido')},
         'hojas': dict(previas)
     }
     capturas = {}
@@ -894,6 +943,11 @@ def generar_sprites(modelos, seleccion=None):
                 buf_w = rasterizar(Twr, Mw, cam, ppm * SS, FW * SS, FH * SS, ox, oy)
                 lin_b = lineas_de(buf_b, trazo)
                 lin_w = lineas_de(buf_w, trazo)
+                subfases = [(buf_w, lin_w)]
+                for Ts, Ms in mod['ruedas_sub'][1:]:
+                    buf_s = rasterizar(rot_y(Ts.reshape(-1, 3), g).reshape(Ts.shape), Ms, cam,
+                                       ppm * SS, FW * SS, FH * SS, ox, oy)
+                    subfases.append((buf_s, lineas_de(buf_s, trazo)))
                 # Rueda por delante de la carrocería: esa parte se vuelve a dibujar encima.
                 adelante = (buf_w[2] >= 0) & ((buf_w[0] < buf_b[0]) | (buf_b[2] < 0))
                 adelante &= (buf_b[2] >= 0) | engrosar(buf_b[2] >= 0, trazo['silueta'] + 2)
@@ -910,11 +964,17 @@ def generar_sprites(modelos, seleccion=None):
                 for lib in libreas:
                     cuerpo = pintar(buf_b, lin_b, tabla_color(lib, False))
                     frenado = pintar(buf_b, lin_b, tabla_color(lib, True), freno=True)
-                    ruedas = pintar(buf_w, lin_w, tabla_color(lib, False))
-                    arr = np.asarray(ruedas).copy()
-                    arr[..., 3] = (arr[..., 3] * mascara).astype(np.uint8)
-                    frente = Image.fromarray(arr, 'RGBA')
+                    pintadas = [pintar(b, l, tabla_color(lib, False)) for b, l in subfases]
+                    salto = len(pintadas) // FASES['pasos']
+                    variantes = {s: pintadas[i * salto] for i, s in enumerate(FASES['sufijos'])}
+                    variantes[FASES['barrido']] = promedio_rgba(pintadas)
+                    ruedas = variantes['']
+                    frente = adelante_de(ruedas, mascara)
                     capas = {'carroceria': cuerpo, 'freno': solo_diferencias(cuerpo, frenado), 'ruedas': ruedas, 'frente': frente}
+                    for suf, img in variantes.items():
+                        if suf:
+                            capas[f'ruedas{suf}'] = img
+                            capas[f'frente{suf}'] = adelante_de(img, mascara)
                     for capa, img in capas.items():
                         # La luz de freno está limitada al dominio original del efecto.
                         # El material base y las ruedas no se recortan artificialmente.
@@ -958,7 +1018,7 @@ def generar_sprites(modelos, seleccion=None):
                 hoja.paste(crop, (rect['x'],rect['y']))
         archivo = f'{nombre}.png'
         hoja.save(os.path.join(SPRITES, archivo), optimize=True)
-        atlas['hojas'][nombre] = {'archivo': archivo, 'cuadros': cuadros, 'puntos': puntos}
+        atlas['hojas'][nombre] = {'archivo': archivo, 'rayos': mod['meta']['rayos'], 'cuadros': cuadros, 'puntos': puntos}
         print(f'  {nombre}: hoja {hoja.width}x{hoja.height}, {len(cuadros)} recortes', flush=True)
     atlas['hojas'] = {k: atlas['hojas'][k] for k in modelos if k in atlas['hojas']}
     with open(ruta_atlas, 'w', encoding='utf-8') as fh:
@@ -1277,7 +1337,15 @@ if __name__ == '__main__':
         cuerpo, ruedas, meta = fn()
         todo = Malla()
         todo.t = cuerpo.t + ruedas.t
-        modelos[n] = {'cuerpo': preparar(cuerpo), 'ruedas': preparar(ruedas), 'todo': preparar(todo), 'meta': meta}
+        # La rueda rodada en subfases a lo largo de un período de llanta. Las fases dibujables
+        # salen de acá a intervalos regulares, y la rueda barrida es el promedio de todas.
+        sub = []
+        for i in range(FASES['subpasos_barrido']):
+            GIRO_RUEDA = i / FASES['subpasos_barrido']
+            sub.append(preparar(fn()[1]))
+        GIRO_RUEDA = 0.0
+        modelos[n] = {'cuerpo': preparar(cuerpo), 'ruedas': preparar(ruedas), 'ruedas_sub': sub,
+                      'todo': preparar(todo), 'meta': meta}
         print(f'{n}: {len(todo.t)} triángulos', flush=True)
 
     if 'sprites' in etapas:

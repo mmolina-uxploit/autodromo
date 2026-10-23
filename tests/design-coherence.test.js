@@ -40,14 +40,20 @@ test('los autos elegibles son los del ecosistema, con sus libreas canónicas', (
   }
 });
 
-test('cada librea elegible tiene sus capas en todos los giros e inclinaciones, y su retrato', () => {
+test('cada librea elegible tiene sus capas, con todas las fases de rueda, en todos los giros e inclinaciones, y su retrato', () => {
   const steps = atlas.giros_grados.length;
   for (const { model, liveries } of VEHICLES) {
     const frames = atlas.hojas[model]?.cuadros ?? {};
+    assert.ok(Number.isInteger(atlas.hojas[model]?.rayos), `${model}: rayos de la llanta`);
     for (const { id } of liveries) {
       for (const incline of Object.keys(atlas.inclinaciones_grados)) {
         for (let g = 0; g < steps; g++) {
-          for (const layer of ['carroceria', 'ruedas', 'freno']) {
+          const { sufijos, barrido } = atlas.fases_rueda;
+          const fases = [...sufijos, barrido];
+          // El frente puede no existir (de frente, ninguna rueda tapa la carrocería); si existe,
+          // tiene que estar en todas las fases o la rueda cambiaría de forma al girar.
+          const frente = frames[`${model}_${id}_${incline}_frente_g${g}`] ? fases.map(s => `frente${s}`) : [];
+          for (const layer of ['carroceria', 'freno', ...fases.map(s => `ruedas${s}`), ...frente]) {
             assert.ok(frames[`${model}_${id}_${incline}_${layer}_g${g}`], `${model}/${id} ${incline} ${layer} giro ${g}`);
           }
         }

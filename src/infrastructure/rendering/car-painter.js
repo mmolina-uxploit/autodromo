@@ -1,9 +1,9 @@
-import { findFrame, framePoints, steerFrameIndex } from './sprite-atlas.js';
+import { findFrame, framePoints, steerFrameIndex, wheelFrame } from './sprite-atlas.js';
 import { hashNoise } from '../../domain/math.js';
 import { glowSprite, paintGlow } from './glow.js';
 
 /**
- * Dibuja un auto por capas: sombra en el piso, ruedas fijas, carrocería que sube, baja y rola
+ * Dibuja un auto por capas: sombra en el piso, ruedas que ruedan, carrocería que sube, baja y rola
  * sobre la suspensión, y la parte de las ruedas que va por delante. Los propulsores se dibujan
  * en las toberas que marca el generador. La suspensión se exagera para que se lea a distancia.
  */
@@ -28,6 +28,24 @@ function drawLayer(ctx, atlas, key, ox, oy, k) {
   const r = frame.rect;
   ctx.drawImage(frame.image, r.x, r.y, r.w, r.h, ox + r.ox * k, oy + r.oy * k, r.w * k, r.h * k);
   return true;
+}
+
+/**
+ * Ruedas (o su parte de adelante) en la fase de giro que toca. Sobre la fase va la rueda barrida
+ * con la opacidad del fundido: a velocidad los rayos se vuelven un disco en vez de titilar.
+ */
+function drawWheels(ctx, atlas, key, layer, spin, ox, oy, k, alpha) {
+  if (spin.blur < 1 && !drawLayer(ctx, atlas, key(layer + spin.suffix), ox, oy, k)) {
+    drawLayer(ctx, atlas, key(layer), ox, oy, k);
+  }
+  if (spin.blur > 0) {
+    ctx.globalAlpha = alpha * spin.blur;
+    if (!drawLayer(ctx, atlas, key(layer + atlas.wheelPhases.blur), ox, oy, k) && spin.blur >= 1) {
+      ctx.globalAlpha = alpha;
+      drawLayer(ctx, atlas, key(layer), ox, oy, k);
+    }
+    ctx.globalAlpha = alpha;
+  }
 }
 
 /**
@@ -126,13 +144,15 @@ export function paintCar(ctx, atlas, car, view) {
   const toScreen = ([px, py]) => [ox + px * k, oy + py * k];
   const key = layer => ({ model: car.model, livery: car.livery, incline: view.incline, layer, steerIndex });
   const alpha = view.alpha ?? 1;
+  const spin = wheelFrame(atlas.wheelPhases, sheet.spokes, car.progress,
+    car.u * (1 + 2 * car.wheelspin), spec.wheelRadius);
 
   const { heave, pitch, roll } = car.susp;
   const lift = (heave - pitch * spec.b) * HEAVE_GAIN;
   const [pivotX, pivotY] = points.pivote?.[0] ? toScreen(points.pivote[0]) : [x, y - 0.55 * ppm];
 
   ctx.globalAlpha = alpha;
-  drawLayer(ctx, atlas, key('ruedas'), ox, oy, k);
+  drawWheels(ctx, atlas, key, 'ruedas', spin, ox, oy, k, alpha);
   if (car.lifting || (car.airborne && car.vz > 3 && car.airTime < 0.35)) {
     liftJets(ctx, points.toberas_bajas, toScreen, groundY, ppm, clock, car.lifting ? 1 : 0.7);
   }
@@ -149,7 +169,7 @@ export function paintCar(ctx, atlas, car, view) {
   }
   ctx.restore();
   ctx.globalAlpha = alpha;
-  drawLayer(ctx, atlas, key('frente'), ox, oy, k);
+  drawWheels(ctx, atlas, key, 'frente', spin, ox, oy, k, alpha);
   ctx.globalAlpha = 1;
 }
 

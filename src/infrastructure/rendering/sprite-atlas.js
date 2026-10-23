@@ -7,7 +7,8 @@ import { assetUrl, embeddedJson } from '../../config/assets.js';
  */
 export function parseAtlas(json) {
   const sheets = Object.fromEntries(Object.entries(json.hojas).map(([model, sheet]) =>
-    [model, Object.freeze({ file: sheet.archivo, frames: sheet.cuadros, points: sheet.puntos ?? {}, image: null })]));
+    [model, Object.freeze({ file: sheet.archivo, spokes: sheet.rayos ?? null, frames: sheet.cuadros, points: sheet.puntos ?? {}, image: null })]));
+  const phases = json.fases_rueda;
   return Object.freeze({
     frameWidth: json.cuadro.ancho,
     frameHeight: json.cuadro.alto,
@@ -16,6 +17,7 @@ export function parseAtlas(json) {
     pixelsPerMeter: json.px_por_metro_en_ancla,
     steerAngles: json.giros_grados,
     layers: json.capas ?? ['carroceria', 'freno', 'ruedas', 'frente'],
+    wheelPhases: phases ? Object.freeze({ steps: phases.pasos, suffixes: phases.sufijos, blur: phases.barrido }) : null,
     sheets: Object.freeze(sheets)
   });
 }
@@ -27,6 +29,27 @@ export function steerFrameIndex(degrees, angles) {
     if (Math.abs(angles[i] - degrees) < Math.abs(angles[best] - degrees)) best = i;
   }
   return best;
+}
+
+// Cadencia de fases (fases por segundo) entre la que la rueda pasa de verse girar a barrida.
+// A 60 cuadros por segundo, cerca de una fase por cuadro la secuencia deja de leerse hacia
+// adelante: se ve quieta o al revés. Contar en fases y no en km/h ajusta el corte a cada llanta.
+const SPIN_BLUR = Object.freeze({ from: 20, to: 50 });
+
+/**
+ * Qué cuadro de rueda dibujar. La rueda rodó `distance / radius` radianes; la llanta se repite
+ * cada 2π / rayos y está dibujada en `steps` fases por período. `spin` es la velocidad de la
+ * banda en m/s (con el patinaje sumado). Devuelve el sufijo de la fase y cuánto fundir con la
+ * rueda barrida (0 a 1).
+ */
+export function wheelFrame(phases, spokes, distance, spin, radius) {
+  if (!phases || !spokes || !(radius > 0)) return { suffix: '', blur: 0 };
+  const step = (2 * Math.PI) / spokes / phases.steps;
+  const turned = distance / radius / step;
+  const index = ((Math.floor(turned) % phases.steps) + phases.steps) % phases.steps;
+  const rate = Math.abs(spin) / radius / step;
+  const t = Math.min(1, Math.max(0, (rate - SPIN_BLUR.from) / (SPIN_BLUR.to - SPIN_BLUR.from)));
+  return { suffix: phases.suffixes[index], blur: t * t * (3 - 2 * t) };
 }
 
 export const frameKey = ({ model, livery, incline, layer, steerIndex }) =>
