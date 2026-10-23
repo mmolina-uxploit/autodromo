@@ -73,9 +73,16 @@ export const ZONES = Object.freeze([
   {
     id: 'valle-alto', name: 'Valle Alto', time: 'día',
     sky: ['#2a74d6', '#6db3ee', '#d4ecf7'], fog: '#b9dc9a',
-    road: { asphalt: ['#6b717b', '#666c76'], rumble: ['#f4f6fa', '#d9dfe6'], lane: '#f4f6fa', ground: ['#79c24b', '#70b944'] },
-    wall: { face: ['#c7cbe0', '#7f93b0'], top: '#efebe4', stripe: '#b6e03a', height: 0.7 },
+    road: { asphalt: ['#6b717b', '#666c76'], rumble: ['#6b717b', '#666c76'], lane: '#f4f6fa', ground: ['#79c24b', '#70b944'], edgeLine: true },
+    wall: { face: ['#c7cbe0', '#7f93b0'], top: '#efebe4', stripe: '#b6e03a', height: 0.45 },
     gap: { top: '#4f5d7a', bottom: '#1c1f3a', shimmer: '#5fe3f0' },
+    // Campo pintado: parcelas en pares de color (surco, entresurco), bordos, matas y bacheos.
+    fields: {
+      colors: [['#7ec44e', '#75ba47'], ['#a3d65c', '#98cc53'], ['#5a9c3e', '#529336'], ['#bcd56a', '#b1cb5f'], ['#d8bf62', '#ccb257'], ['#86c25a', '#7cb852']],
+      levee: '#b5de82',
+      patches: ['#5d636c', '#7a808a'],
+      tufts: { dark: '#3f7f3a', light: '#a8dc6c', flowers: ['#fff4dc', '#ffd36a'] }
+    },
     props: ['oak', 'oak', 'house'], lamps: false, poles: true, signs: 'rural',
     backdrop: 'valley', accent: '#b6e03a', smoke: '#efebe4', dust: '#c7cbe0',
     atmosphere: {

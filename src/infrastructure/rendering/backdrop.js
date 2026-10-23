@@ -141,6 +141,52 @@ function paintMoon(ctx, zone, { width: W, horizon: hy, unit }, offset) {
  * Un cúmulo pintado: muchos bollos suaves con base plana, sombreado de abajo hacia arriba (o al
  * revés si los ilumina el sol bajo o la ciudad), luces en cada bollo y un borde luminoso.
  */
+/**
+ * Cúmulo pintado bollo por bollo: cada uno es un disco de borde neto en blanco cálido con su
+ * media luna de sombra azulada abajo a la derecha. Se pintan de arriba hacia abajo, así el bollo
+ * de adelante tapa la sombra del de atrás y queda la forma de coliflor. La panza de la nube va
+ * en sombra plana, y al final el grano de pintura.
+ */
+function paintTallCloud(cloud, puffs, width, height, base) {
+  const c = offscreen(width, height);
+  const g = c.getContext('2d');
+  const shade = cloud.shade;
+  const mid = mix(cloud.light, shade, 0.35);
+  const disc = (x, y, r, color) => {
+    g.fillStyle = color;
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fill();
+  };
+  // Toda la nube en sombra; encima la luz, cada bollo corrido hacia el sol y algo achicado.
+  // Lo que queda sin cubrir abajo a la derecha es la masa en sombra, con borde festoneado.
+  // Cada bollo, de atrás (arriba) hacia adelante (abajo): sombra entera, tono medio y luz
+  // corridos hacia el sol. El bollo de adelante deja su festón de sombra sobre la luz del de atrás.
+  for (const p of [...puffs].sort((a, b) => a.y - b.y)) {
+    disc(p.x, p.y, p.r, shade);
+    disc(p.x - p.r * 0.13, p.y - p.r * 0.17, p.r * 0.9, mid);
+    disc(p.x - p.r * 0.25, p.y - p.r * 0.31, p.r * 0.76, cloud.light);
+  }
+  // Volumen de toda la masa: se apaga hacia abajo y hacia el lado contrario al sol.
+  g.globalCompositeOperation = 'source-atop';
+  g.fillStyle = linear(g, width * 0.2, height * 0.1, width * 0.85, base, [[0, rgba(shade, 0)], [0.55, rgba(shade, 0.12)], [1, rgba(shade, 0.45)]]);
+  g.fillRect(0, 0, width, height);
+  g.globalCompositeOperation = 'source-over';
+  // Panza: todo lo que está abajo de la base de luz queda en sombra plana.
+  g.globalCompositeOperation = 'source-atop';
+  g.fillStyle = linear(g, 0, base - height * 0.22, 0, base, [[0, rgba(shade, 0)], [0.35, rgba(shade, 0.75)], [1, rgba(mix(shade, '#7f93b0', 0.3), 0.95)]]);
+  g.fillRect(0, base - height * 0.22, width, height * 0.3);
+  // Tapa al sol: un toque cálido arriba a la izquierda de la torre.
+  g.fillStyle = linear(g, 0, 0, width * 0.6, height * 0.6, [[0, rgba('#fff4dc', 0.5)], [1, rgba('#fff4dc', 0)]]);
+  g.fillRect(0, 0, width, height);
+  // La base corta derecho, como se ven los cúmulos sobre el valle.
+  g.globalCompositeOperation = 'destination-out';
+  g.fillRect(0, base, width, height - base);
+  g.globalCompositeOperation = 'source-over';
+  gouache(c, Math.round(width * 7 + height), 0.7);
+  return c;
+}
+
 function paintCloud(cloud, seed, width) {
   const rnd = seeded(seed);
   const height = width * (cloud.tall ? 0.82 : 0.42);
@@ -170,6 +216,7 @@ function paintCloud(cloud, seed, width) {
         puffs.push({ x: cx + (per === 1 ? 0 : (k / (per - 1) - 0.5) * 2 * spread * 0.7) + (rnd() - 0.5) * r * 0.5, y: y + r * 0.35, r });
       }
     }
+    return paintTallCloud(cloud, puffs, width, height, base);
   } else {
     const n = 9 + Math.floor(rnd() * 6);
     for (let i = 0; i < n; i++) {
@@ -430,6 +477,50 @@ function ridgeProfile(W, seed, octaves) {
   return h;
 }
 
+/**
+ * Textura de pintura sobre un lienzo ya pintado: manchas grandes de color que suben y bajan
+ * como el pigmento que no se repartió parejo, y grano fino como el del papel. Solo toca lo
+ * que tiene dibujo. Es lo que separa un fondo pintado de un degradé de computadora.
+ */
+function gouache(canvas, seed, strength = 1) {
+  const g = canvas.getContext('2d');
+  const { width: w, height: h } = canvas;
+  if (!w || !h) return;
+  const img = g.getImageData(0, 0, w, h);
+  const d = img.data;
+  // Manchas: ruido de valor en una grilla gruesa, interpolado.
+  const cell = 22;
+  const gw = Math.ceil(w / cell) + 2;
+  const gh = Math.ceil(h / cell) + 2;
+  const rnd = seeded(seed);
+  const grid = new Float32Array(gw * gh * 2);
+  for (let i = 0; i < grid.length; i++) grid[i] = rnd() * 2 - 1;
+  const sample = (x, y, o) => {
+    const fx = x / cell, fy = y / cell;
+    const ix = Math.floor(fx), iy = Math.floor(fy);
+    const tx = fx - ix, ty = fy - iy;
+    const sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
+    const at = (a, b) => grid[((b * gw + a) * 2) + o];
+    const top = at(ix, iy) + (at(ix + 1, iy) - at(ix, iy)) * sx;
+    const bot = at(ix, iy + 1) + (at(ix + 1, iy + 1) - at(ix, iy + 1)) * sx;
+    return top + (bot - top) * sy;
+  };
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      if (d[i + 3] < 8) continue;
+      const blot = sample(x, y, 0) * 9 * strength;
+      const warm = sample(x * 0.7, y * 0.7, 1) * 6 * strength;
+      const grain = (((x * 73856093) ^ (y * 19349663) ^ seed) & 255) / 255 - 0.5;
+      const n = blot + grain * 7 * strength;
+      d[i] = clamp(d[i] + n + warm, 0, 255);
+      d[i + 1] = clamp(d[i + 1] + n, 0, 255);
+      d[i + 2] = clamp(d[i + 2] + n - warm, 0, 255);
+    }
+  }
+  g.putImageData(img, 0, 0);
+}
+
 const rgbOf = hex => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
 
 /**
@@ -438,7 +529,7 @@ const rgbOf = hex => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) &
  * (aristas que bajan del pico abriéndose en abanico) parten cada ladera en caras claras y
  * oscuras. Abajo la bruma lava el color. `height(x)` da la altura en píxeles sobre `base`.
  */
-function paintRange(g, W, base, height, { lit, shade, haze, hazeAlpha, spurs = 0, dots }) {
+function paintRange(g, W, base, height, { lit, shade, haze, hazeAlpha, spurs = 0, dots, forest }) {
   const n = Math.ceil(W);
   const hs = new Float32Array(n + 1);
   let top = base;
@@ -522,6 +613,37 @@ function paintRange(g, W, base, height, { lit, shade, haze, hazeAlpha, spurs = 0
   const layer = offscreen(n, rows);
   layer.getContext('2d').putImageData(img, 0, 0);
   g.drawImage(layer, 0, y0);
+  // Bosque: la ladera no es un degradé sino cientos de copas, cada una del color de la luz que
+  // le toca, con su lado en sombra y su tapa al sol. Más chicas hacia la cresta, que está lejos.
+  if (forest) {
+    const r = seeded(forest.seed);
+    const count = Math.round(n * rows * forest.density / 100);
+    const dabs = [];
+    for (let i = 0; i < count; i++) {
+      const x = Math.floor(r() * n);
+      const h = hs[x];
+      if (h < 3) continue;
+      const v = r() ** 0.85 * 0.94;
+      const y = Math.floor(base - h * v);
+      const j = ((y - y0) * n + x) * 4;
+      if (j < 0 || j >= img.data.length || img.data[j + 3] < 200) continue;
+      dabs.push([x, y, v, j, r()]);
+    }
+    // De arriba hacia abajo: cada fila de copas tapa el pie de la de atrás.
+    dabs.sort((a, b) => a[1] - b[1]);
+    for (const [x, y, v, j, q] of dabs) {
+      const cr = img.data[j], cg = img.data[j + 1], cb = img.data[j + 2];
+      const size = forest.size * (1.2 - 0.65 * v) * (0.7 + 0.6 * q);
+      g.fillStyle = `rgb(${cr * 0.86 | 0},${cg * 0.87 | 0},${cb * 0.9 | 0})`;
+      g.beginPath();
+      g.ellipse(x, y + size * 0.15, size * 1.15, size, 0, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = `rgb(${Math.min(255, cr * 1.07 + 6) | 0},${Math.min(255, cg * 1.06 + 8) | 0},${Math.min(255, cb * 1.0) | 0})`;
+      g.beginPath();
+      g.ellipse(x - size * 0.2, y - size * 0.3, size * 0.75, size * 0.55, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
   // Monte: pocos manchones de árboles achatados, en la parte baja y siempre del mismo verde.
   if (dots) {
     const r = seeded(dots.seed);
@@ -739,14 +861,15 @@ const SKYLINES = {
     const haze = zone.atmosphere.haze[0];
     return [
       // Cordillera lejana, casi celeste por la distancia.
-      { factor: 0.03, paint(g, W, H, hy) {
+      { factor: 0.03, grain: 0.6, paint(g, W, H, hy) {
         const p = ridgeProfile(W, 11, [[2, 1], [5, 0.45], [11, 0.18]]);
         paintRange(g, W, hy, x => H * (0.06 + 0.07 * p[x % p.length]), {
-          lit: mix('#8db3cf', haze, 0.3), shade: '#5d7fa6', haze, hazeAlpha: 0.7, spurs: 0.5
+          lit: mix('#8db3cf', haze, 0.3), shade: '#5d7fa6', haze, hazeAlpha: 0.7, spurs: 0.5,
+          forest: { seed: 3, density: 2, size: Math.max(1, H * 0.0025) }
         });
       } },
       // La montaña: un pico grande con hombros y uno menor al costado.
-      { factor: 0.07, paint(g, W, H, hy) {
+      { factor: 0.07, grain: 1, paint(g, W, H, hy) {
         const p = ridgeProfile(W, 23, [[3, 0.5], [7, 0.3], [17, 0.12], [31, 0.05]]);
         const peak = (x, cx, half, h) => {
           const t = Math.abs(((x - cx + W * 1.5) % W) - W / 2) / half;
@@ -757,20 +880,20 @@ const SKYLINES = {
           const m = Math.max(peak(x, W * 0.52, W * 0.34, H * 0.24), peak(x, W * 0.14, W * 0.2, H * 0.13), peak(x, W * 0.86, W * 0.22, H * 0.15));
           return m > 0 ? m * (0.88 + 0.24 * p[xi]) + H * 0.02 : H * 0.02 * p[xi];
         }, {
-          lit: '#5fae52', shade: '#1f4f4c', haze, hazeAlpha: 0.6, spurs: 1,
-          dots: { seed: 5, count: 90, size: Math.max(1.2, H * 0.004), color: '#2d6a3e' }
+          lit: '#5fae52', shade: '#1f4f4c', haze, hazeAlpha: 0.6, spurs: 0.65,
+          forest: { seed: 5, density: 6, size: Math.max(1.2, H * 0.0034) }
         });
       } },
       // Lomas cercanas, más verdes y con montes de árboles.
-      { factor: 0.16, paint(g, W, H, hy) {
+      { factor: 0.16, grain: 1, paint(g, W, H, hy) {
         const p = ridgeProfile(W, 41, [[4, 1], [9, 0.5], [19, 0.2]]);
         paintRange(g, W, hy, x => H * (0.015 + 0.055 * p[x % p.length]), {
           lit: '#74bd4c', shade: '#2f6e44', haze, hazeAlpha: 0.3, spurs: 0.4,
-          dots: { seed: 9, count: 60, size: Math.max(1.5, H * 0.006), color: '#2f7a3a' }
+          forest: { seed: 9, density: 5, size: Math.max(1.4, H * 0.0045) }
         });
       } },
       // Arboleda y casas sobre el borde del campo.
-      { factor: 0.3, paint(g, W, H, hy) {
+      { factor: 0.3, grain: 0.8, paint(g, W, H, hy) {
         const rnd = seeded(61);
         const base = hy + 1;
         for (let i = 0; i < 18; i++) {
@@ -860,6 +983,7 @@ function croppedLayer(layer, W, H, hy, unit) {
   const full = offscreen(W, hy + 2);
   const g = full.getContext('2d');
   layer.paint(g, W, H, hy, unit);
+  if (layer.grain) gouache(full, Math.round(layer.factor * 1000) + 7, layer.grain);
   const data = g.getImageData(0, 0, full.width, full.height).data;
   let top = full.height;
   let bottom = -1;

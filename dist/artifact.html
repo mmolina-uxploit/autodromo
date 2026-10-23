@@ -786,9 +786,16 @@ const ZONES = Object.freeze([
   {
     id: 'valle-alto', name: 'Valle Alto', time: 'día',
     sky: ['#2a74d6', '#6db3ee', '#d4ecf7'], fog: '#b9dc9a',
-    road: { asphalt: ['#6b717b', '#666c76'], rumble: ['#f4f6fa', '#d9dfe6'], lane: '#f4f6fa', ground: ['#79c24b', '#70b944'] },
-    wall: { face: ['#c7cbe0', '#7f93b0'], top: '#efebe4', stripe: '#b6e03a', height: 0.7 },
+    road: { asphalt: ['#6b717b', '#666c76'], rumble: ['#6b717b', '#666c76'], lane: '#f4f6fa', ground: ['#79c24b', '#70b944'], edgeLine: true },
+    wall: { face: ['#c7cbe0', '#7f93b0'], top: '#efebe4', stripe: '#b6e03a', height: 0.45 },
     gap: { top: '#4f5d7a', bottom: '#1c1f3a', shimmer: '#5fe3f0' },
+    // Campo pintado: parcelas en pares de color (surco, entresurco), bordos, matas y bacheos.
+    fields: {
+      colors: [['#7ec44e', '#75ba47'], ['#a3d65c', '#98cc53'], ['#5a9c3e', '#529336'], ['#bcd56a', '#b1cb5f'], ['#d8bf62', '#ccb257'], ['#86c25a', '#7cb852']],
+      levee: '#b5de82',
+      patches: ['#5d636c', '#7a808a'],
+      tufts: { dark: '#3f7f3a', light: '#a8dc6c', flowers: ['#fff4dc', '#ffd36a'] }
+    },
     props: ['oak', 'oak', 'house'], lamps: false, poles: true, signs: 'rural',
     backdrop: 'valley', accent: '#b6e03a', smoke: '#efebe4', dust: '#c7cbe0',
     atmosphere: {
@@ -3882,6 +3889,52 @@ function paintMoon(ctx, zone, { width: W, horizon: hy, unit }, offset) {
  * Un cúmulo pintado: muchos bollos suaves con base plana, sombreado de abajo hacia arriba (o al
  * revés si los ilumina el sol bajo o la ciudad), luces en cada bollo y un borde luminoso.
  */
+/**
+ * Cúmulo pintado bollo por bollo: cada uno es un disco de borde neto en blanco cálido con su
+ * media luna de sombra azulada abajo a la derecha. Se pintan de arriba hacia abajo, así el bollo
+ * de adelante tapa la sombra del de atrás y queda la forma de coliflor. La panza de la nube va
+ * en sombra plana, y al final el grano de pintura.
+ */
+function paintTallCloud(cloud, puffs, width, height, base) {
+  const c = offscreen(width, height);
+  const g = c.getContext('2d');
+  const shade = cloud.shade;
+  const mid = mix(cloud.light, shade, 0.35);
+  const disc = (x, y, r, color) => {
+    g.fillStyle = color;
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fill();
+  };
+  // Toda la nube en sombra; encima la luz, cada bollo corrido hacia el sol y algo achicado.
+  // Lo que queda sin cubrir abajo a la derecha es la masa en sombra, con borde festoneado.
+  // Cada bollo, de atrás (arriba) hacia adelante (abajo): sombra entera, tono medio y luz
+  // corridos hacia el sol. El bollo de adelante deja su festón de sombra sobre la luz del de atrás.
+  for (const p of [...puffs].sort((a, b) => a.y - b.y)) {
+    disc(p.x, p.y, p.r, shade);
+    disc(p.x - p.r * 0.13, p.y - p.r * 0.17, p.r * 0.9, mid);
+    disc(p.x - p.r * 0.25, p.y - p.r * 0.31, p.r * 0.76, cloud.light);
+  }
+  // Volumen de toda la masa: se apaga hacia abajo y hacia el lado contrario al sol.
+  g.globalCompositeOperation = 'source-atop';
+  g.fillStyle = linear(g, width * 0.2, height * 0.1, width * 0.85, base, [[0, rgba(shade, 0)], [0.55, rgba(shade, 0.12)], [1, rgba(shade, 0.45)]]);
+  g.fillRect(0, 0, width, height);
+  g.globalCompositeOperation = 'source-over';
+  // Panza: todo lo que está abajo de la base de luz queda en sombra plana.
+  g.globalCompositeOperation = 'source-atop';
+  g.fillStyle = linear(g, 0, base - height * 0.22, 0, base, [[0, rgba(shade, 0)], [0.35, rgba(shade, 0.75)], [1, rgba(mix(shade, '#7f93b0', 0.3), 0.95)]]);
+  g.fillRect(0, base - height * 0.22, width, height * 0.3);
+  // Tapa al sol: un toque cálido arriba a la izquierda de la torre.
+  g.fillStyle = linear(g, 0, 0, width * 0.6, height * 0.6, [[0, rgba('#fff4dc', 0.5)], [1, rgba('#fff4dc', 0)]]);
+  g.fillRect(0, 0, width, height);
+  // La base corta derecho, como se ven los cúmulos sobre el valle.
+  g.globalCompositeOperation = 'destination-out';
+  g.fillRect(0, base, width, height - base);
+  g.globalCompositeOperation = 'source-over';
+  gouache(c, Math.round(width * 7 + height), 0.7);
+  return c;
+}
+
 function paintCloud(cloud, seed, width) {
   const rnd = seeded(seed);
   const height = width * (cloud.tall ? 0.82 : 0.42);
@@ -3911,6 +3964,7 @@ function paintCloud(cloud, seed, width) {
         puffs.push({ x: cx + (per === 1 ? 0 : (k / (per - 1) - 0.5) * 2 * spread * 0.7) + (rnd() - 0.5) * r * 0.5, y: y + r * 0.35, r });
       }
     }
+    return paintTallCloud(cloud, puffs, width, height, base);
   } else {
     const n = 9 + Math.floor(rnd() * 6);
     for (let i = 0; i < n; i++) {
@@ -4171,6 +4225,50 @@ function ridgeProfile(W, seed, octaves) {
   return h;
 }
 
+/**
+ * Textura de pintura sobre un lienzo ya pintado: manchas grandes de color que suben y bajan
+ * como el pigmento que no se repartió parejo, y grano fino como el del papel. Solo toca lo
+ * que tiene dibujo. Es lo que separa un fondo pintado de un degradé de computadora.
+ */
+function gouache(canvas, seed, strength = 1) {
+  const g = canvas.getContext('2d');
+  const { width: w, height: h } = canvas;
+  if (!w || !h) return;
+  const img = g.getImageData(0, 0, w, h);
+  const d = img.data;
+  // Manchas: ruido de valor en una grilla gruesa, interpolado.
+  const cell = 22;
+  const gw = Math.ceil(w / cell) + 2;
+  const gh = Math.ceil(h / cell) + 2;
+  const rnd = seeded(seed);
+  const grid = new Float32Array(gw * gh * 2);
+  for (let i = 0; i < grid.length; i++) grid[i] = rnd() * 2 - 1;
+  const sample = (x, y, o) => {
+    const fx = x / cell, fy = y / cell;
+    const ix = Math.floor(fx), iy = Math.floor(fy);
+    const tx = fx - ix, ty = fy - iy;
+    const sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
+    const at = (a, b) => grid[((b * gw + a) * 2) + o];
+    const top = at(ix, iy) + (at(ix + 1, iy) - at(ix, iy)) * sx;
+    const bot = at(ix, iy + 1) + (at(ix + 1, iy + 1) - at(ix, iy + 1)) * sx;
+    return top + (bot - top) * sy;
+  };
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      if (d[i + 3] < 8) continue;
+      const blot = sample(x, y, 0) * 9 * strength;
+      const warm = sample(x * 0.7, y * 0.7, 1) * 6 * strength;
+      const grain = (((x * 73856093) ^ (y * 19349663) ^ seed) & 255) / 255 - 0.5;
+      const n = blot + grain * 7 * strength;
+      d[i] = clamp(d[i] + n + warm, 0, 255);
+      d[i + 1] = clamp(d[i + 1] + n, 0, 255);
+      d[i + 2] = clamp(d[i + 2] + n - warm, 0, 255);
+    }
+  }
+  g.putImageData(img, 0, 0);
+}
+
 const rgbOf = hex => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
 
 /**
@@ -4179,7 +4277,7 @@ const rgbOf = hex => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) &
  * (aristas que bajan del pico abriéndose en abanico) parten cada ladera en caras claras y
  * oscuras. Abajo la bruma lava el color. `height(x)` da la altura en píxeles sobre `base`.
  */
-function paintRange(g, W, base, height, { lit, shade, haze, hazeAlpha, spurs = 0, dots }) {
+function paintRange(g, W, base, height, { lit, shade, haze, hazeAlpha, spurs = 0, dots, forest }) {
   const n = Math.ceil(W);
   const hs = new Float32Array(n + 1);
   let top = base;
@@ -4263,6 +4361,37 @@ function paintRange(g, W, base, height, { lit, shade, haze, hazeAlpha, spurs = 0
   const layer = offscreen(n, rows);
   layer.getContext('2d').putImageData(img, 0, 0);
   g.drawImage(layer, 0, y0);
+  // Bosque: la ladera no es un degradé sino cientos de copas, cada una del color de la luz que
+  // le toca, con su lado en sombra y su tapa al sol. Más chicas hacia la cresta, que está lejos.
+  if (forest) {
+    const r = seeded(forest.seed);
+    const count = Math.round(n * rows * forest.density / 100);
+    const dabs = [];
+    for (let i = 0; i < count; i++) {
+      const x = Math.floor(r() * n);
+      const h = hs[x];
+      if (h < 3) continue;
+      const v = r() ** 0.85 * 0.94;
+      const y = Math.floor(base - h * v);
+      const j = ((y - y0) * n + x) * 4;
+      if (j < 0 || j >= img.data.length || img.data[j + 3] < 200) continue;
+      dabs.push([x, y, v, j, r()]);
+    }
+    // De arriba hacia abajo: cada fila de copas tapa el pie de la de atrás.
+    dabs.sort((a, b) => a[1] - b[1]);
+    for (const [x, y, v, j, q] of dabs) {
+      const cr = img.data[j], cg = img.data[j + 1], cb = img.data[j + 2];
+      const size = forest.size * (1.2 - 0.65 * v) * (0.7 + 0.6 * q);
+      g.fillStyle = `rgb(${cr * 0.86 | 0},${cg * 0.87 | 0},${cb * 0.9 | 0})`;
+      g.beginPath();
+      g.ellipse(x, y + size * 0.15, size * 1.15, size, 0, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = `rgb(${Math.min(255, cr * 1.07 + 6) | 0},${Math.min(255, cg * 1.06 + 8) | 0},${Math.min(255, cb * 1.0) | 0})`;
+      g.beginPath();
+      g.ellipse(x - size * 0.2, y - size * 0.3, size * 0.75, size * 0.55, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
   // Monte: pocos manchones de árboles achatados, en la parte baja y siempre del mismo verde.
   if (dots) {
     const r = seeded(dots.seed);
@@ -4480,14 +4609,15 @@ const SKYLINES = {
     const haze = zone.atmosphere.haze[0];
     return [
       // Cordillera lejana, casi celeste por la distancia.
-      { factor: 0.03, paint(g, W, H, hy) {
+      { factor: 0.03, grain: 0.6, paint(g, W, H, hy) {
         const p = ridgeProfile(W, 11, [[2, 1], [5, 0.45], [11, 0.18]]);
         paintRange(g, W, hy, x => H * (0.06 + 0.07 * p[x % p.length]), {
-          lit: mix('#8db3cf', haze, 0.3), shade: '#5d7fa6', haze, hazeAlpha: 0.7, spurs: 0.5
+          lit: mix('#8db3cf', haze, 0.3), shade: '#5d7fa6', haze, hazeAlpha: 0.7, spurs: 0.5,
+          forest: { seed: 3, density: 2, size: Math.max(1, H * 0.0025) }
         });
       } },
       // La montaña: un pico grande con hombros y uno menor al costado.
-      { factor: 0.07, paint(g, W, H, hy) {
+      { factor: 0.07, grain: 1, paint(g, W, H, hy) {
         const p = ridgeProfile(W, 23, [[3, 0.5], [7, 0.3], [17, 0.12], [31, 0.05]]);
         const peak = (x, cx, half, h) => {
           const t = Math.abs(((x - cx + W * 1.5) % W) - W / 2) / half;
@@ -4498,20 +4628,20 @@ const SKYLINES = {
           const m = Math.max(peak(x, W * 0.52, W * 0.34, H * 0.24), peak(x, W * 0.14, W * 0.2, H * 0.13), peak(x, W * 0.86, W * 0.22, H * 0.15));
           return m > 0 ? m * (0.88 + 0.24 * p[xi]) + H * 0.02 : H * 0.02 * p[xi];
         }, {
-          lit: '#5fae52', shade: '#1f4f4c', haze, hazeAlpha: 0.6, spurs: 1,
-          dots: { seed: 5, count: 90, size: Math.max(1.2, H * 0.004), color: '#2d6a3e' }
+          lit: '#5fae52', shade: '#1f4f4c', haze, hazeAlpha: 0.6, spurs: 0.65,
+          forest: { seed: 5, density: 6, size: Math.max(1.2, H * 0.0034) }
         });
       } },
       // Lomas cercanas, más verdes y con montes de árboles.
-      { factor: 0.16, paint(g, W, H, hy) {
+      { factor: 0.16, grain: 1, paint(g, W, H, hy) {
         const p = ridgeProfile(W, 41, [[4, 1], [9, 0.5], [19, 0.2]]);
         paintRange(g, W, hy, x => H * (0.015 + 0.055 * p[x % p.length]), {
           lit: '#74bd4c', shade: '#2f6e44', haze, hazeAlpha: 0.3, spurs: 0.4,
-          dots: { seed: 9, count: 60, size: Math.max(1.5, H * 0.006), color: '#2f7a3a' }
+          forest: { seed: 9, density: 5, size: Math.max(1.4, H * 0.0045) }
         });
       } },
       // Arboleda y casas sobre el borde del campo.
-      { factor: 0.3, paint(g, W, H, hy) {
+      { factor: 0.3, grain: 0.8, paint(g, W, H, hy) {
         const rnd = seeded(61);
         const base = hy + 1;
         for (let i = 0; i < 18; i++) {
@@ -4601,6 +4731,7 @@ function croppedLayer(layer, W, H, hy, unit) {
   const full = offscreen(W, hy + 2);
   const g = full.getContext('2d');
   layer.paint(g, W, H, hy, unit);
+  if (layer.grain) gouache(full, Math.round(layer.factor * 1000) + 7, layer.grain);
   const data = g.getImageData(0, 0, full.width, full.height).data;
   let top = full.height;
   let bottom = -1;
@@ -5681,6 +5812,178 @@ function paintFallbackCar(ctx, x, y, width, color) {
 
 return { paintShadow, paintCar, paintFallbackCar };
 })();
+__m["src/infrastructure/rendering/countryside.js"] = (() => {
+const { hashNoise } = __m["src/domain/math.js"];
+
+/**
+ * El campo pintado de las zonas rurales: parcelas de cultivo en varios verdes con bordos entre
+ * ellas, matas de pasto con flores al costado de la ruta y parches en el asfalto. Todo sale del
+ * índice de segmento, así el mismo tramo se ve igual en cada vuelta y no titila.
+ *
+ * Las funciones reciben una banda ya proyectada: { seg, xN, yN, sN, xF, yF, sF }.
+ */
+
+const FIELD_LENGTH = 8;      // segmentos por parcela a lo largo (24 m)
+const REACH = 150;           // m de campo a cada lado
+const unit = (a, b) => (hashNoise(a, b) + 1) / 2;
+
+/** Lado a lado de la banda, entre dos desplazamientos laterales (m) del lado `s`. */
+function sidePath(ctx, e, a, b, s, overlap) {
+  ctx.moveTo(e.xN + s * a * e.sN, e.yN + overlap);
+  ctx.lineTo(e.xN + s * b * e.sN, e.yN + overlap);
+  ctx.lineTo(e.xF + s * b * e.sF, e.yF);
+  ctx.lineTo(e.xF + s * a * e.sF, e.yF);
+  ctx.closePath();
+}
+
+const plotCache = new Map();
+/** Parcelas de un bloque a un lado: [desde, hasta, índice de color], desde `from` hasta REACH. */
+function plots(block, side, from, colors) {
+  const key = `${block}:${side}:${from}:${colors}`;
+  let list = plotCache.get(key);
+  if (list) return list;
+  list = [];
+  let at = from;
+  for (let j = 0; at < REACH; j++) {
+    const width = 7 + 18 * unit(block * 7.3 + j, side * 13.1);
+    list.push([at, Math.min(REACH, at + width), Math.floor(unit(block * 3.1 + j * 5.7, side * 2.9 + 1) * colors) % colors]);
+    at += width;
+  }
+  plotCache.set(key, list);
+  return list;
+}
+
+/**
+ * Parcelas: cada color en un solo relleno por banda. Los colores vienen de a pares (surco y
+ * entresurco) y alternan con la banda, así se ven las hileras del cultivo. Entre parcelas, un
+ * bordo más claro; al comienzo de cada bloque, el bordo que cruza.
+ */
+// Hasta dónde llega la pantalla de cada lado en esta banda (m desde el eje).
+function reachOf(e, width, s) {
+  const near = s > 0 ? (width - e.xN) / e.sN : e.xN / e.sN;
+  const far = s > 0 ? (width - e.xF) / e.sF : e.xF / e.sF;
+  return Math.min(REACH, Math.max(near, far));
+}
+
+function paintFields(ctx, e, fields, from, band, width) {
+  // En una banda de menos de un píxel el mosaico es ruido y la niebla lo tapa igual.
+  if (e.yN - e.yF < 1) return;
+  const block = Math.floor(e.seg.index / FIELD_LENGTH);
+  const left = plots(block, -1, from, fields.colors.length);
+  const right = plots(block, 1, from, fields.colors.length);
+  const reachL = reachOf(e, width, -1);
+  const reachR = reachOf(e, width, 1);
+  let used = 0;
+  for (const [a, , ci] of left) if (a < reachL) used |= 1 << ci;
+  for (const [a, , ci] of right) if (a < reachR) used |= 1 << ci;
+  for (let c = 0; c < fields.colors.length; c++) {
+    if (!(used & (1 << c))) continue;
+    ctx.beginPath();
+    for (const [a, b, ci] of left) if (ci === c && a < reachL) sidePath(ctx, e, a, b, -1, 1);
+    for (const [a, b, ci] of right) if (ci === c && a < reachR) sidePath(ctx, e, a, b, 1, 1);
+    ctx.fillStyle = fields.colors[c][band];
+    ctx.fill();
+  }
+  const levee = 0.7;
+  if (levee * e.sN < 1) return;
+  ctx.beginPath();
+  for (const [a] of left) if (a < reachL) sidePath(ctx, e, a, a + levee, -1, 1);
+  for (const [a] of right) if (a < reachR) sidePath(ctx, e, a, a + levee, 1, 1);
+  ctx.fillStyle = fields.levee;
+  ctx.fill();
+  if (e.seg.index % FIELD_LENGTH === 0) {
+    const thick = Math.max(1, levee * 0.25 * e.sN);
+    ctx.fillStyle = fields.levee;
+    ctx.beginPath();
+    for (const [s, r] of [[-1, reachL], [1, reachR]]) {
+      if (r <= from) continue;
+      ctx.moveTo(e.xN + s * from * e.sN, e.yN);
+      ctx.lineTo(e.xN + s * r * e.sN, e.yN);
+      ctx.lineTo(e.xN + s * r * e.sN, e.yN - thick);
+      ctx.lineTo(e.xN + s * from * e.sN, e.yN - thick);
+      ctx.closePath();
+    }
+    ctx.fill();
+  }
+}
+
+const TUFTS = 26;
+/**
+ * Matas de pasto entre la ruta y el campo: hojas oscuras con una más clara encima y, de vez en
+ * cuando, una flor. Crecen hacia arriba, así que se pintan en la pasada de atrás hacia
+ * adelante, no con el piso.
+ */
+function paintTufts(ctx, e, from, to, palette, width) {
+  const i = e.seg.index;
+  const dark = [];
+  const light = [];
+  ctx.lineCap = 'round';
+  for (let j = 0; j < TUFTS; j++) {
+    const s = j % 2 ? 1 : -1;
+    const lat = from + (to - from) * unit(i * 1.7 + j, 31) ** 1.4;
+    const t = unit(i * 2.3 + j, 47);
+    const scale = e.sN + (e.sF - e.sN) * t;
+    const x = e.xN + (e.xF - e.xN) * t + s * lat * scale;
+    const y = e.yN + (e.yF - e.yN) * t;
+    const h = (0.22 + 0.3 * unit(i + j * 3.3, 53)) * scale;
+    if (h < 1.2 || x < -h || x > width + h) continue;
+    const lean = (unit(i * 0.9 + j, 61) - 0.5) * 0.8;
+    dark.push(x, y, h, lean);
+    if (unit(i * 1.3 + j, 71) > 0.82) light.push(x, y, h, lean, 1);
+    else light.push(x, y, h, lean, 0);
+  }
+  ctx.lineWidth = Math.max(1, 0.07 * e.sN);
+  ctx.strokeStyle = palette.dark;
+  ctx.beginPath();
+  for (let k = 0; k < dark.length; k += 4) {
+    const [x, y, h, lean] = [dark[k], dark[k + 1], dark[k + 2], dark[k + 3]];
+    for (const [dx, f] of [[-0.3, 0.55], [-0.15, 0.8], [0, 1], [0.16, 0.75], [0.3, 0.5]]) {
+      ctx.moveTo(x + dx * h, y);
+      ctx.quadraticCurveTo(x + (dx + lean * 0.3) * h, y - h * f * 0.6, x + (dx * 1.8 + lean) * h, y - h * f);
+    }
+  }
+  ctx.stroke();
+  ctx.strokeStyle = palette.light;
+  ctx.beginPath();
+  for (let k = 0; k < light.length; k += 5) {
+    const [x, y, h, lean] = [light[k], light[k + 1], light[k + 2], light[k + 3]];
+    ctx.moveTo(x + 0.05 * h, y - h * 0.1);
+    ctx.quadraticCurveTo(x + (0.1 + lean * 0.3) * h, y - h * 0.5, x + (0.15 + lean * 0.9) * h, y - h * 0.85);
+  }
+  ctx.stroke();
+  for (let k = 0; k < light.length; k += 5) {
+    if (!light[k + 4]) continue;
+    const [x, y, h, lean] = [light[k], light[k + 1], light[k + 2], light[k + 3]];
+    const r = Math.max(1, h * 0.12);
+    ctx.fillStyle = (k / 5) % 2 ? palette.flowers[0] : palette.flowers[1];
+    ctx.beginPath();
+    ctx.arc(x + (0.15 + lean * 0.9) * h, y - h * 0.9, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/**
+ * Parches de asfalto: bacheos más oscuros y más claros que ocupan un tramo de un carril, como
+ * en un camino viejo. Un parche dura varios segmentos seguidos para que se lea como un rectángulo.
+ */
+function paintPatches(ctx, e, halfWidth, colors) {
+  const block = Math.floor(e.seg.index / 5);
+  const u = unit(block, 89);
+  if (u < 0.55) return;
+  const a = -halfWidth * 0.85 + halfWidth * 1.2 * unit(block, 97);
+  const b = a + halfWidth * (0.25 + 0.35 * unit(block, 101));
+  ctx.fillStyle = colors[u > 0.8 ? 1 : 0];
+  ctx.beginPath();
+  ctx.moveTo(e.xN + a * e.sN, e.yN + 1);
+  ctx.lineTo(e.xN + b * e.sN, e.yN + 1);
+  ctx.lineTo(e.xF + b * e.sF, e.yF);
+  ctx.lineTo(e.xF + a * e.sF, e.yF);
+  ctx.closePath();
+  ctx.fill();
+}
+
+return { paintFields, paintTufts, paintPatches };
+})();
 __m["src/infrastructure/rendering/particles.js"] = (() => {
 /**
  * Partículas en coordenadas de pista (s, n, z) con velocidad propia. Solo efecto visual:
@@ -5865,6 +6168,7 @@ const { createCamera, createViewport, fogAt } = __m["src/infrastructure/renderin
 const { paintBackdrop, sunPosition, mix } = __m["src/infrastructure/rendering/backdrop.js"];
 const { paintProp, propsAt, distanceBoards, POLE } = __m["src/infrastructure/rendering/props.js"];
 const { paintCar } = __m["src/infrastructure/rendering/car-painter.js"];
+const { paintFields, paintTufts, paintPatches } = __m["src/infrastructure/rendering/countryside.js"];
 const { createParticles, ParticleKind } = __m["src/infrastructure/rendering/particles.js"];
 const { createMinimap } = __m["src/infrastructure/rendering/minimap.js"];
 const { createSkidMarks } = __m["src/infrastructure/rendering/skid-marks.js"];
@@ -6149,12 +6453,17 @@ function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = () => '#7
     const thin = e.yN - e.yF < 1.5;
     ctx.fillStyle = zone.road.ground[band];
     ctx.fillRect(0, e.yF, vp.width, e.yN - e.yF + 1);
+    // En el campo las parcelas llegan hasta un cordón de pasto al lado de la ruta: el escape
+    // sigue midiendo lo mismo para el juego, solo que se pinta como campo.
+    const verge = zone.fields ? hw + rw + 1.4 : B;
+    if (zone.fields) paintFields(ctx, e, zone.fields, verge, band, vp.width);
     // Las franjas se pintan con colores ya mezclados y opacos: una franja translúcida deja una
     // costura clara en cada borde de banda (el suavizado no cubre del todo la fila compartida).
-    if (!thin) strip(e, hw + rw, B, runoffStyles[band]);
+    if (!thin) strip(e, hw + rw, verge, runoffStyles[band]);
     strip(e, hw, hw + rw, zone.road.rumble[band]);
     const asphalt = seg.isStartLine ? START_LINE_COLOR : seg.ramp ? rampStyles[band][e.k] : asphaltStyles[band][e.k];
     quad(e.xN - hw * e.sN, e.xN + hw * e.sN, e.yN, e.xF - hw * e.sF, e.xF + hw * e.sF, e.yF, asphalt);
+    if (zone.fields && !thin && e.k < N * 0.35 && !seg.isStartLine && !seg.ramp) paintPatches(ctx, e, hw, zone.fields.patches);
 
     if (seg.isStartLine) {
       const cols = 8;
@@ -6183,6 +6492,8 @@ function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = () => '#7
       lanes(e, hw * 0.38, 0.8, tireStyles[band][e.k]);
     }
     if (!thin && !seg.isStartLine && !seg.ramp && !seg.boost && band === 0) lanes(e, hw / 3, 0.12, zone.road.lane);
+    // Camino de campo: línea de borde fina y continua en vez de cordón pintado.
+    if (zone.road.edgeLine && !thin && !seg.isStartLine) lanes(e, hw + rw * 0.35, 0.09, zone.road.lane);
   }
 
   function paintRoad(vp, fogDensity) {
@@ -7007,6 +7318,10 @@ function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = () => '#7
         // el muro mide poco más de un metro y el poste más alto, siete y medio, que a esa
         // distancia siguen siendo menos de un píxel. Saltearla es la mitad del trabajo del cuadro.
         if (e.zN < DETAIL_NEAR || e.yN - e.yF >= view.detail) {
+          if (view.zone.fields && view.quality > 0 && e.zN < 30 && !e.seg.gap) {
+            const { track } = view;
+            withClip(e.clip, vp, e.yN, () => paintTufts(ctx, e, track.halfWidth + rules.rumbleWidth + 0.4, track.barrier + 10, view.zone.fields.tufts, vp.width));
+          }
           paintWalls(e, vp);
           paintProps(e, vp, k);
           paintOverhead(e, vp, race);

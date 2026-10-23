@@ -2,6 +2,7 @@ import { createCamera, createViewport, fogAt } from './projection.js';
 import { paintBackdrop, sunPosition, mix } from './backdrop.js';
 import { paintProp, propsAt, distanceBoards, POLE } from './props.js';
 import { paintCar } from './car-painter.js';
+import { paintFields, paintTufts, paintPatches } from './countryside.js';
 import { createParticles, ParticleKind } from './particles.js';
 import { createMinimap } from './minimap.js';
 import { createSkidMarks } from './skid-marks.js';
@@ -286,12 +287,17 @@ export function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = ()
     const thin = e.yN - e.yF < 1.5;
     ctx.fillStyle = zone.road.ground[band];
     ctx.fillRect(0, e.yF, vp.width, e.yN - e.yF + 1);
+    // En el campo las parcelas llegan hasta un cordón de pasto al lado de la ruta: el escape
+    // sigue midiendo lo mismo para el juego, solo que se pinta como campo.
+    const verge = zone.fields ? hw + rw + 1.4 : B;
+    if (zone.fields) paintFields(ctx, e, zone.fields, verge, band, vp.width);
     // Las franjas se pintan con colores ya mezclados y opacos: una franja translúcida deja una
     // costura clara en cada borde de banda (el suavizado no cubre del todo la fila compartida).
-    if (!thin) strip(e, hw + rw, B, runoffStyles[band]);
+    if (!thin) strip(e, hw + rw, verge, runoffStyles[band]);
     strip(e, hw, hw + rw, zone.road.rumble[band]);
     const asphalt = seg.isStartLine ? START_LINE_COLOR : seg.ramp ? rampStyles[band][e.k] : asphaltStyles[band][e.k];
     quad(e.xN - hw * e.sN, e.xN + hw * e.sN, e.yN, e.xF - hw * e.sF, e.xF + hw * e.sF, e.yF, asphalt);
+    if (zone.fields && !thin && e.k < N * 0.35 && !seg.isStartLine && !seg.ramp) paintPatches(ctx, e, hw, zone.fields.patches);
 
     if (seg.isStartLine) {
       const cols = 8;
@@ -320,6 +326,8 @@ export function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = ()
       lanes(e, hw * 0.38, 0.8, tireStyles[band][e.k]);
     }
     if (!thin && !seg.isStartLine && !seg.ramp && !seg.boost && band === 0) lanes(e, hw / 3, 0.12, zone.road.lane);
+    // Camino de campo: línea de borde fina y continua en vez de cordón pintado.
+    if (zone.road.edgeLine && !thin && !seg.isStartLine) lanes(e, hw + rw * 0.35, 0.09, zone.road.lane);
   }
 
   function paintRoad(vp, fogDensity) {
@@ -1144,6 +1152,10 @@ export function createCanvasRenderer(canvas, { rules, cameraConfig, colorOf = ()
         // el muro mide poco más de un metro y el poste más alto, siete y medio, que a esa
         // distancia siguen siendo menos de un píxel. Saltearla es la mitad del trabajo del cuadro.
         if (e.zN < DETAIL_NEAR || e.yN - e.yF >= view.detail) {
+          if (view.zone.fields && view.quality > 0 && e.zN < 30 && !e.seg.gap) {
+            const { track } = view;
+            withClip(e.clip, vp, e.yN, () => paintTufts(ctx, e, track.halfWidth + rules.rumbleWidth + 0.4, track.barrier + 10, view.zone.fields.tufts, vp.width));
+          }
           paintWalls(e, vp);
           paintProps(e, vp, k);
           paintOverhead(e, vp, race);
